@@ -1,0 +1,26 @@
+{
+  "name": "voltpath-backend",
+  "version": "2.0.0",
+  "description": "Modular Backend for VoltPath",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "aggregate": "node index.js"
+  },
+  "keywords": [
+    "ev",
+    "postgres",
+    "nodejs",
+    "geospatial"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.8",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^5.2.1",
+    "ngeohash": "^0.6.3",
+    "pg": "^8.16.3"
+  }
+}

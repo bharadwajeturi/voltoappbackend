@@ -1,0 +1,24 @@
+{
+  "name": "voltpath-backend",
+  "version": "1.0.0",
+  "description": "Backend engine for VoltPath EV routing and data aggregation.",
+  "main": "data_aggregator.js",
+  "scripts": {
+    "start": "node data_aggregator.js",
+    "aggregate": "node data_aggregator.js"
+  },
+  "keywords": [
+    "ev",
+    "postgres",
+    "nodejs",
+    "geospatial"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.8",
+    "dotenv": "^16.4.5",
+    "geohash": "^0.1.0",
+    "pg": "^8.11.3"
+  }
+}
