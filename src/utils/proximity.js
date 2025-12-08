@@ -2,6 +2,23 @@
  * Calculates distance between two coords (Haversine formula)
  * Returns distance in meters.
  */
+const geohash = require('ngeohash');
+
+function getGeohashNeighbors(lat, lng, precision = 7) {
+  const hash = geohash.encode(lat, lng, precision);
+  const neighbors = geohash.neighbors(hash);
+  return neighbors;
+}
+
+function getGeohashBoundingBox(lat, lng, precision = 7) {
+  const hash = geohash.encode(lat, lng, precision);
+  const bbox = geohash.bounding_box(hash);
+  return bbox;
+}
+
+
+
+
 function getDistance(lat1, lon1, lat2, lon2) {
     const R = 6371e3; // Earth radius in meters
     const φ1 = lat1 * Math.PI / 180;
@@ -50,4 +67,5 @@ function linkAmenitiesToStations(stations, amenities) {
     return enrichedStations;
 }
 
-module.exports = { linkAmenitiesToStations, getDistance };
+module.exports = { linkAmenitiesToStations, getDistance, getGeohashNeighbors,
+  getGeohashBoundingBox};

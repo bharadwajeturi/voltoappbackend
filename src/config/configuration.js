@@ -13,7 +13,8 @@ module.exports = {
     keys: {
         google: process.env.GOOGLE_API_KEY,
         chargeApi: process.env.CHARGE_API_KEY,
-        govApi: process.env.GOV_API_KEY
+        govApi: process.env.GOV_API_KEY,
+        googlemapskey:process.env.GOOGLE_MAPS_API_KEY,
     },
     // Search Settings
     search: {
