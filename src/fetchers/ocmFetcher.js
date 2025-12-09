@@ -13,7 +13,7 @@ const { getDistanceKm } = require('../utils/distance');
  * @param {number} radiusMeters - Search radius (default 5000m)
  * @returns {Array} - Array of transformed stations
  */
-async function fetchOCM(lat, lng, radiusMeters = 5000) {
+async function fetchStations(lat, lng, radiusMeters = 5000) {
   // Validate input
   if (!lat || !lng) {
     console.warn('[OCM] Missing lat/lng, skipping fetch');
@@ -27,7 +27,7 @@ async function fetchOCM(lat, lng, radiusMeters = 5000) {
   try {
     const radiusKm = radiusMeters / 1000;
     const url = 'https://api.openchargemap.io/v3/poi';
-
+    const apiKey = config.keys.ocm || process.env.OCM_API_KEY;
     // Fetch from OCM API with dynamic parameters
     const response = await axios.get(url, {
       params: {
@@ -36,7 +36,7 @@ async function fetchOCM(lat, lng, radiusMeters = 5000) {
         distance: radiusKm,
         distanceunit: 'KM',
         maxresults: 100,
-        key: config.keys.ocm,
+        key: apiKey,
       },
       timeout: 10000,
     });
@@ -62,11 +62,14 @@ async function fetchOCM(lat, lng, radiusMeters = 5000) {
         lat: poi.AddressInfo.Latitude,
         lng: poi.AddressInfo.Longitude,
         address: poi.AddressInfo?.AddressLine1 || '',
-        operator: poi.OperatorInfo?.OperatorName || 'Unknown',
+        operator: poi.OperatorInfo?.OperatorName || 'OCM',
         // FIX #1: Proper safe access to PowerKW
-        powerkw: poi.Connections && poi.Connections.length > 0 
-          ? poi.Connections.PowerKW 
-          : 0,
+        powerkw: poi.Connections
+        ? Math.max(
+            ...poi.Connections
+              .map(c => c.PowerKW || 0)
+          )
+        : 0,
         // FIX #2: Safe array mapping with filter
         connectorTypes: poi.Connections 
           ? poi.Connections.map(c => c.ConnectionType?.FormalName).filter(Boolean) 
@@ -86,4 +89,4 @@ async function fetchOCM(lat, lng, radiusMeters = 5000) {
   }
 }
 
-module.exports = fetchOCM;
+module.exports = { fetchStations };

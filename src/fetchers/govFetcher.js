@@ -13,7 +13,7 @@ const axios = require('axios');
 const config = require('../config/configuration');
 const { getDistanceKm } = require('../utils/distance');
 
-async function fetchGov(lat, lng, radiusMeters = 5000) {
+async function fetchStations(lat, lng, radiusMeters = 5000) {
   if (!lat || !lng) {
     console.warn('[Gov] Missing lat/lng, skipping fetch');
     return [];
@@ -28,12 +28,14 @@ async function fetchGov(lat, lng, radiusMeters = 5000) {
     const radiusKm = radiusMeters / 1000;
     const url = 'https://api.gis.niti.gov.in/api/EVChargingStations/GetByLocation';
 
+    const apiKey = config.keys.gov || process.env.GOV_API_KEY;
+
     const response = await axios.get(url, {
       params: {
         latitude: lat,
         longitude: lng,
         radius: radiusKm,
-        apikey: config.keys.gov,
+        apikey: apiKey,
       },
       timeout: 10000,
     });
@@ -80,4 +82,4 @@ async function fetchGov(lat, lng, radiusMeters = 5000) {
   }
 }
 
-module.exports = fetchGov;
+module.exports = { fetchStations };

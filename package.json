@@ -4,18 +4,20 @@
   "description": "Smart EV route planning with community-verified chargers",
   "main": "index.js",
   "dependencies": {
-    "express": "^4.18.2",
+    "@mapbox/polyline": "^1.2.1",
+    "axios": "^1.4.0",
+    "bunyan": "^1.8.15",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
-    "pg": "^8.10.0",
-    "bunyan": "^1.8.15",
+    "express": "^4.18.2",
+    "geohash": "^0.0.1",
     "ngeohash": "^0.6.3",
-    "axios": "^1.4.0"
+    "pg": "^8.10.0"
   },
   "devDependencies": {
-    "nodemon": "^2.0.20",
-    "jest": "^29.5.0",
     "eslint": "^8.40.0",
+    "jest": "^29.5.0",
+    "nodemon": "^2.0.20",
     "supertest": "^6.3.3"
   }
 }

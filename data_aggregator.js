@@ -1,243 +1,233 @@
 /**
- * VOLTPATH BACKEND - PHASE 1: DATA AGGREGATION WORKER
- * * This script is the core of the "reliability" goal. It simulates fetching data 
- * from multiple sources (APIs), normalizing it, de-duplicating it using 
- * Geohashing, and saving the merged "Golden Record" to the PostgreSQL DB.
- * * NOTE: For security, API keys and DB credentials must be stored in a .env file.
+ * VOLTPATH BACKEND - DATA AGGREGATOR ENGINE
  */
 
-// --- 1. SETUP & IMPORTS ---
-const { Client } = require('pg');
-const axios = require('axios');
+const { Pool } = require('pg'); 
 const dotenv = require('dotenv');
-const geohash = require('geohash');
+const geohash = require('geohash'); 
+const mergeData = require('./src/merger/engine');
+const axios = require('axios'); // Ensure axios is imported
 
-// Load environment variables from .env file
 dotenv.config();
 
-// --- 2. CONFIGURATION (Placeholder Values) ---
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || 'YOUR_GOOGLE_API_KEY';
-const CHARGE_API_KEY = process.env.CHARGE_API_KEY || 'YOUR_CHARGE_API_KEY';
-const GOV_API_KEY    = process.env.GOV_API_KEY    || 'YOUR_GOV_API_KEY';
-
-// Database connection details (using environment variables)
 const dbConfig = {
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
     database: process.env.DB_NAME || 'voltpath_db',
-    password: process.env.DB_PASSWORD || 'password123', // Your installed password
+    password: process.env.DB_PASSWORD || 'password123',
     port: process.env.DB_PORT || 5432,
+    max: 10, 
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
 };
 
-// Initialize DB Client
-const db = new Client(dbConfig);
+// Ensure these paths match where you placed the files
+const googleFetcher = require('./src/fetchers/googleFetcher'); 
+const ocmFetcher = require('./src/fetchers/ocmFetcher');
+const govFetcher = require('./src/fetchers/govFetcher');
+const osmFetcher = require('./src/fetchers/osmFetcher');
 
-// --- 3. CORE LOGIC FUNCTIONS ---
+const db = new Pool(dbConfig);
 
-/**
- * Creates the necessary 'stations_master' table with PostGIS geometry.
- */
-async function setupDatabase() {
-    console.log("-> Checking Database Schema...");
-    const CREATE_TABLE_QUERY = `
-        CREATE TABLE IF NOT EXISTS stations_master (
-            id TEXT PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            geog GEOGRAPHY(Point, 4326) NOT NULL,
-            address TEXT,
-            operator VARCHAR(50),
-            power_kw INT,
-            charger_type VARCHAR(50),
-            trust_score INT,
-            source_apis JSONB,
-            amenities JSONB,
-            last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-    `;
-    await db.query(CREATE_TABLE_QUERY);
-    console.log("-> Database setup complete.");
-}
-
-/**
- * Normalizes an incoming station object into our standardized schema.
- * @param {object} rawData - Data from any external API.
- * @param {string} source - 'google', 'gov', or 'charge'.
- * @returns {object} - Standardized VoltPath station object.
- */
 function normalizeStation(rawData, source) {
-    // This function must be highly detailed for real project.
-    // Simulating normalization using a static template:
-    const lat = rawData.lat || 0;
-    const lng = rawData.lng || 0;
-    const geohashValue = geohash.encode(lat, lng, 9); // Geohash precision of ~5m
+    const lat = parseFloat(rawData.lat);
+    const lng = parseFloat(rawData.lng);
+
+    if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return null;
+
+    let geohashValue;
+    try {
+        geohashValue = geohash.encode(lat, lng, 9);
+    } catch (err) {
+        return null;
+    }
 
     return {
-        // Unique ID based on Geohash and source
         id: `${source}-${geohashValue}`,
         geohash: geohashValue,
         name: rawData.name || 'Unknown Station',
         lat: lat,
         lng: lng,
         operator: rawData.operator || source,
-        power_kw: rawData.power_kw || 0,
-        charger_type: rawData.charger_type || 'Unknown',
+        powerkw: rawData.power_kw || 0, // Mapped to DB column powerkw
+        connectortypes: rawData.charger_type || 'Unknown', // Mapped to connectortypes
         address: rawData.address || 'N/A',
         source: source,
+        amenities: rawData.amenities || {}
     };
 }
 
-/**
- * Simulated fetch from external APIs. In production, this uses axios.
- * This simulates data for Hyderabad area.
- */
-async function fetchAllData() {
-    console.log("-> Fetching data from external sources (Simulated).");
+ // --- HELPER: Delay function (Required for Google Next Page Token) ---
+// Google requires a short delay (2 sec) before the next_page_token becomes valid
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function fetchGoogleRawWithPagination(lat, lng, radius) {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    let allResults = [];
+    let nextPageToken = null;
     
-    // Simulate GOV API data (High Trust, Specific Specs)
-    const govData = [{
-        name: 'TSSPDCL EV Charging Station', lat: 17.41202, lng: 78.45082, operator: 'TSSPDCL', power_kw: 60, charger_type: 'DC', address: 'Road No 1, Banjara Hills',
-    }];
-    
-    // Simulate CHARGE API data (Mid Trust, Availability)
-    const chargeData = [{
-        name: 'TSSPDCL EV Charging Station (Banjara)', lat: 17.41200, lng: 78.45080, operator: 'TSSPDCL', power_kw: 60, charger_type: 'DC', address: 'Road No 1, Banjara Hills',
-    }, {
-        name: 'Zeon Hub - Gachibowli', lat: 17.44265, lng: 78.37500, operator: 'Zeon', power_kw: 50, charger_type: 'DC Fast', address: 'Near Wipro Circle',
-    }];
+    // Initial URL
+    let url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=point_of_interest&keyword=EV%20Charging%20Station&key=${apiKey}`;
 
-    // Simulate GOOGLE API data (Low Trust, Rich Amenity Data)
-    const googleData = [{
-        name: 'EV Station near Banjara Hills', lat: 17.41205, lng: 78.45085, operator: 'Unknown', power_kw: 0, charger_type: 'Type 2', address: 'Road No 1, Banjara Hills, Next to Hotel', amenities: { rating: 4.5, food: 'Vivanta Grill' }
-    }, {
-        name: 'Starbucks Charger', lat: 17.44270, lng: 78.37510, operator: 'Starbucks', power_kw: 7, charger_type: 'AC Slow', address: 'Gachibowli High Street', amenities: { rating: 4.8, food: 'Cafe', restroom: 'clean' }
-    }];
+    do {
+        if (nextPageToken) {
+            // ⚠️ CRITICAL: Google requires a 2-second delay before the token is valid
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${nextPageToken}&key=${apiKey}`;
+        }
 
-    let normalizedData = [];
-    govData.forEach(d => normalizedData.push(normalizeStation(d, 'gov')));
-    chargeData.forEach(d => normalizedData.push(normalizeStation(d, 'charge')));
-    googleData.forEach(d => normalizedData.push(normalizeStation(d, 'google')));
+        try {
+            const response = await axios.get(url);
+            const data = response.data;
+            
+            if (data.results && data.results.length > 0) {
+                allResults = [...allResults, ...data.results];
+            }
 
-    return normalizedData;
+            // Check if there is another page
+            nextPageToken = data.next_page_token;
+
+        } catch (err) {
+            console.error('[Google Loop] Error:', err.message);
+            break; 
+        }
+    } while (nextPageToken);
+
+    return allResults;
 }
 
+async function fetchAndSaveExternalData(startLat, startLng, endLat, endLng) {
+    console.log(`[Data Engine] 🌐 Checking for external updates...`);
+    //let externalData = []; // Call APIs here in prod
+    //let mockGovData = [];
+   // const mergedResults = mergeData([], [], mockGovData, []);
+    console.log(`Dataaggregator📍 Region: (${startLat},${startLng}) to (${endLat},${endLng})`);
+    console.log('[Data Engine] 🔑 Checking Keys:', {
+        Google: process.env.GOOGLE_MAPS_API_KEY ? '✅ Present' : '❌ Missing',
+        OCM: process.env.OCM_API_KEY ? '✅ Present' : '❌ Missing',
+        Gov: process.env.GOV_API_KEY ? '✅ Present' : '❌ Missing'
+    });
 
-/**
- * PHASE 1 CORE: Handles the de-duplication and merging of data.
- * @param {Array} stations - Array of normalized station objects.
- * @returns {Array} - Array of final merged station objects.
- */
-function mergeStations(stations) {
-    const mergedMap = new Map();
+    const searchRadius = 50000; // 60km
+    try {
+        const [googleData, ocmData, govData] = await Promise.all([
 
-    stations.forEach(station => {
-        // Use geohash as the key for identifying duplicates (~5m precision)
-        const key = station.geohash;
+            // Google: Used custom paginated fetcher to get ALL results (Page 1, 2, 3)
+            fetchGoogleRawWithPagination(startLat, startLng, searchRadius),
 
-        if (!mergedMap.has(key)) {
-            // First time seeing this location: initialize the merged record
-            mergedMap.set(key, {
-                ...station,
-                source_apis: [station.source],
-                trust_score: (station.source === 'gov' ? 50 : 30), // Initial score
-            });
-        } else {
-            // Duplicate found: perform the merge/priority logic
-            let existing = mergedMap.get(key);
+            // Google Fetcher
+            googleFetcher.fetchStations(startLat, startLng, searchRadius)
+                .catch(err => { console.error('❌ Google API Failed:', err.message); return []; }),
+            
+            // OCM Fetcher
+            ocmFetcher.fetchStations(startLat, startLng, searchRadius)
+                .catch(err => { console.error('❌ OCM API Failed:', err.message); return []; }),
 
-            // 1. Prioritize technical specs from Gov/Charge APIs
-            if (station.power_kw > existing.power_kw) {
-                existing.power_kw = station.power_kw;
-                existing.charger_type = station.charger_type;
-            }
+            // Gov Fetcher
+            govFetcher.fetchStations(startLat, startLng, searchRadius)
+                .catch(err => { console.error('❌ Gov API Failed:', err.message); return []; })
+        ]);
 
-            // 2. Aggregate sources and increase score
-            if (!existing.source_apis.includes(station.source)) {
-                existing.source_apis.push(station.source);
-                existing.trust_score += 20; // Bonus for multi-source verification
-            }
+        console.log(`\n[Data Engine] 📥 RAW DATA RECEIVED:`);
+        console.log(`   - Google: ${googleData.length}`);
+        console.log(`   - OCM:    ${ocmData.length}`);
+        console.log(`   - Gov:    ${govData.length}`);
 
-            // 3. Keep richer amenity data (usually from Google)
-            if (station.amenities && !existing.amenities) {
-                 existing.amenities = station.amenities;
-            }
+        // 4. MERGE DATA
+        // Pass the REAL data arrays to the merger
+        const mergedResults = mergeData(googleData, ocmData, govData, []);
 
-            // Update the map with the refined record
-            mergedMap.set(key, existing);
-        }
+        // 5. NORMALIZE FOR DB
+        const dbStations = mergedResults.map(s => ({
+            id: s.id,
+            geohash: s.geohash,
+            name: s.name,
+            lat: s.lat,
+            lng: s.lng,
+            address: s.address || '',
+            operator: s.operator || '',
+            powerkw: s.powerkw || 0,
+            connectortypes: JSON.stringify(s.connectorTypes || []),
+            trustscore: s.trustscore || 50,
+            sources: s.sources,
+            amenities: s.amenities || [],
+            externalIds: s.externalIds,
+            rawData: s.rawData
+        }));
+        
+        console.log(`[Data Engine] 🌐 Fetched and normalized ${dbStations.length} external stations.`)  ;
+        if (dbStations.length > 0) {
+            await saveToDatabase(dbStations); 
+        console.log(`[Data Engine] ✅ Database Update Complete.`);
+            } else {
+                console.warn(`[Data Engine] ⚠️ No stations to save.`);
+              } 
+    } catch (error) {
+        console.error('[Data Engine] ❌ Critical Fetch Error:', error);
+    }
+}
+
+const toPgArray = (input) => {
+    // 1. Handle null/undefined
+    if (!input) return '{}';
+    
+    // 2. Force into array if it's a single item (string/number)
+    const arr = Array.isArray(input) ? input : [input];
+    
+    // 3. Handle empty array
+    if (arr.length === 0) return '{}'; 
+
+    // 4. Map and Escape
+    const items = arr.map(item => {
+        if (item === null || item === undefined) return 'NULL';
+        return `"${item.toString().replace(/"/g, '\\"')}"`;
     });
     
-    // Convert Map values back to an array
-    return Array.from(mergedMap.values());
-}
+    return `{${items.join(',')}}`;
+};
 
-
-/**
- * Inserts the final merged data into the PostgreSQL table.
- */
 async function saveToDatabase(finalStations) {
-    console.log(`-> Saving ${finalStations.length} merged records to PostGIS.`);
+    if (finalStations.length === 0) return;
+
+    // 🔴 FIX: Updated INSERT to match 'stationsmaster' schema
     const INSERT_QUERY = `
-        INSERT INTO stations_master (id, name, geog, address, operator, power_kw, charger_type, trust_score, source_apis, amenities, last_updated)
-        VALUES ($1, $2, ST_SetSRID(ST_MakePoint($3, $4), 4326), $5, $6, $7, $8, $9, $10, $11, NOW())
-        ON CONFLICT (id) DO UPDATE SET
-            name = EXCLUDED.name,
-            geog = EXCLUDED.geog,
-            power_kw = EXCLUDED.power_kw,
-            charger_type = EXCLUDED.charger_type,
-            trust_score = EXCLUDED.trust_score,
-            source_apis = EXCLUDED.source_apis,
-            amenities = EXCLUDED.amenities,
-            last_updated = NOW();
+        INSERT INTO stationsmaster (
+            id, geohash, name, lat, lng, 
+            geog, address, operator, powerkw, 
+            connectortypes, trustscore, sources, amenities, lastupdatedat
+        )
+        VALUES (
+            $1, $2, $3, $4::numeric, $5::numeric,
+            ST_SetSRID(ST_MakePoint($5::numeric, $4::numeric), 4326), $6, $7, $8, 
+            $9, $10, $11, $12, NOW()
+        )
+        ON CONFLICT (id) DO NOTHING;
     `;
 
     for (const station of finalStations) {
         try {
             await db.query(INSERT_QUERY, [
-                station.geohash, // Using geohash as unique ID
+                station.id,
+                station.geohash,
                 station.name,
-                station.lng, 
                 station.lat, 
+                station.lng,
+                // $6 starts here (address)
                 station.address,
                 station.operator,
-                station.power_kw,
-                station.charger_type,
-                station.trust_score,
-                JSON.stringify(station.source_apis),
-                JSON.stringify(station.amenities || {})
+                station.powerkw,
+                toPgArray(station.connectortypes || []),
+                station.trustscore || 50, // Default trustscore
+                toPgArray(station.sources || []), // sources
+                toPgArray(station.amenities || [])
             ]);
         } catch (error) {
-            console.error(`Error saving station ${station.name}:`, error.message);
+            console.error(`[Data Engine] DB Save Error (${station.name}):`, error.message);
         }
     }
-    console.log("-> Data synchronization complete.");
 }
 
-
-// --- 4. MAIN EXECUTION FLOW ---
-async function runAggregation() {
-    try {
-        console.log("--- Starting VoltPath Aggregation Engine ---");
-        await db.connect();
-        await setupDatabase();
-
-        // 1. Fetch data from all sources (Simulated)
-        const rawStations = await fetchAllData();
-        console.log(`-> Fetched ${rawStations.length} raw records.`);
-        
-        // 2. Run the core merge logic
-        const finalStations = mergeStations(rawStations);
-        console.log(`-> Merged into ${finalStations.length} unique records (Golden Records).`);
-
-        // 3. Save to PostGIS Database
-        await saveToDatabase(finalStations);
-
-    } catch (error) {
-        console.error("CRITICAL ERROR during aggregation:", error.message);
-    } finally {
-        await db.end();
-        console.log("--- Aggregation Engine Finished ---");
-    }
-}
-
-// To run this, the developer must first create a .env file with DB details.
-runAggregation();
+module.exports = {
+    fetchAndSaveExternalData,
+    db 
+};
