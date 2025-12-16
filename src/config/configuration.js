@@ -21,6 +21,7 @@ module.exports = {
     govApi: process.env.GOV_API_KEY,
     googlemapskey: process.env.GOOGLE_MAPS_API_KEY,
     ocm: process.env.OCM_API_KEY,
+    rapidapi:process.env.RAPID_API_KEY
 
   },
 

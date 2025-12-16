@@ -1,90 +1,86 @@
 const axios = require('axios');
 const config = require('../config/configuration');
-const { getDistanceKm } = require('../utils/distance');
+const { isRelevantStation } = require('../utils/stationFilter');
+const { normalizePower } = require('../utils/normalization'); 
 
-/**
- * OCM Fetcher - Fetch chargers from Open Charge Map API
- * 
- * RULE #1: Rate limiting applied at global level
- * Uses dynamic lat/lng parameters (no hard-coded coordinates)
- * 
- * @param {number} lat - Latitude
- * @param {number} lng - Longitude
- * @param {number} radiusMeters - Search radius (default 5000m)
- * @returns {Array} - Array of transformed stations
- */
+// 🟢 Helper: Pause execution (Politeness Policy)
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function fetchStations(lat, lng, radiusMeters = 5000) {
-  // Validate input
-  if (!lat || !lng) {
-    console.warn('[OCM] Missing lat/lng, skipping fetch');
-    return [];
-  }
+  if (!lat || !lng) return [];
 
-  console.log(
-    `[OCM] Fetching chargers within ${radiusMeters / 1000}km of ${lat},${lng}`
-  );
+  const startTime = Date.now();
+  const radiusKm = radiusMeters / 1000;
 
   try {
-    const radiusKm = radiusMeters / 1000;
+    // 🟢 1. Add random delay to prevent burst rate-limiting (100-500ms)
+    await sleep(Math.floor(Math.random() * 400) + 100);
+
     const url = 'https://api.openchargemap.io/v3/poi';
     const apiKey = config.keys.ocm || process.env.OCM_API_KEY;
-    // Fetch from OCM API with dynamic parameters
+
     const response = await axios.get(url, {
       params: {
+        output: 'json', // Strict compliance
         latitude: lat,
         longitude: lng,
         distance: radiusKm,
         distanceunit: 'KM',
         maxresults: 100,
         key: apiKey,
+        compact: true, 
+        verbose: false,
+      },
+      headers: {
+        'User-Agent': 'VoltPath/1.0',
+        'Content-Type': 'application/json',
       },
       timeout: 10000,
     });
 
-    // Validate response
-    if (!response.data || !Array.isArray(response.data)) {
-      console.log('[OCM] No results found');
-      return [];
+    if (!response.data || !Array.isArray(response.data)) return [];
+
+    const stations = response.data.map(poi => {
+        let rawPower = 0;
+        if (poi.Connections) {
+            rawPower = Math.max(...poi.Connections.map(c => c.PowerKW || 0));
+        }
+
+        // Use Normalizer
+        const power = normalizePower(rawPower, 3.3);
+
+        return {
+          name: poi.AddressInfo?.Title,
+          lat: poi.AddressInfo?.Latitude,
+          lng: poi.AddressInfo?.Longitude,
+          address: poi.AddressInfo?.AddressLine1 || '',
+          operator: poi.OperatorInfo?.Title || 'OCM',
+          powerkw: power,
+          connectorTypes: (poi.Connections || [])
+            .map(c => c.ConnectionType?.Title)
+            .filter(Boolean),
+          trustscore: 85,
+          source: 'ocm',
+          externalId: `ocm_${poi.ID}`
+        };
+      })
+      .filter(station => isRelevantStation(station));
+
+    const duration = Date.now() - startTime;
+    if (stations.length > 0) {
+        console.log(`[OCM] ✅ Found ${stations.length} stations in ${duration}ms`);
     }
 
-    console.log(`[OCM] Found ${response.data.length} stations`);
-
-    // Transform to standard format
-    const stations = response.data
-      .filter(
-        poi =>
-          poi.AddressInfo &&
-          poi.AddressInfo.Latitude &&
-          poi.AddressInfo.Longitude
-      )
-      .map(poi => ({
-        name: poi.AddressInfo?.Title || 'Unknown',
-        lat: poi.AddressInfo.Latitude,
-        lng: poi.AddressInfo.Longitude,
-        address: poi.AddressInfo?.AddressLine1 || '',
-        operator: poi.OperatorInfo?.OperatorName || 'OCM',
-        // FIX #1: Proper safe access to PowerKW
-        powerkw: poi.Connections
-        ? Math.max(
-            ...poi.Connections
-              .map(c => c.PowerKW || 0)
-          )
-        : 0,
-        // FIX #2: Safe array mapping with filter
-        connectorTypes: poi.Connections 
-          ? poi.Connections.map(c => c.ConnectionType?.FormalName).filter(Boolean) 
-          : [],
-        trustscore: 85, // OCM is well-maintained
-        amenities: [],
-        externalId: `ocm_${poi.ID}`,
-        source: 'ocm',
-        numberOfPoints: poi.NumberOfPoints || 1,
-      }));
-
-    console.log(`[OCM] Transformed ${stations.length} stations`);
     return stations;
+
   } catch (error) {
-    console.error(`[OCM] Error: ${error.message}`);
+    // 🟢 2. Robust Error Handling
+    if (error.response && error.response.status === 429) {
+        console.warn('[OCM] Rate Limit (429) - Skipping tile.');
+        return [];
+    }
+    // Silent fail for timeouts/network issues to keep flow moving, but log it
+    // console.error(`[OCM] Error: ${error.message}`);
     return [];
   }
 }

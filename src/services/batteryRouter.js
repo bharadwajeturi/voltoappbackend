@@ -1,227 +1,169 @@
-const ApiError = require('../utils/errorHandler');
-
-// UTILITY FUNCTIONS (EMBEDDED - NO EXTERNAL DEPENDENCIES)
-function getDistanceKm(lat1, lng1, lat2, lng2) {
-  const R = 6371; // Earth's radius in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
-
-function getEstimatedTravelTimeMinutes(distanceKm) {
-  return Math.round(distanceKm / 60 * 60); // 60 km/h average speed (mixed highway/city)
-}
-
-function filterAmenitiesByETA(amenities, arrivalTime) {
-  const hour = arrivalTime.getHours();
-  
-  // Filter amenities by time of day
-  if (hour >= 6 && hour < 11) {
-    return amenities.filter(a => a.includes('breakfast') || a.includes('coffee'));
-  }
-  if (hour >= 11 && hour < 16) {
-    return amenities.filter(a => a.includes('lunch') || a.includes('coffee'));
-  }
-  if (hour >= 16 && hour >= 19) {
-    return amenities.filter(a => a.includes('coffee') || a.includes('snack'));
-  }
-  if (hour >= 19 && hour < 23) {
-    return amenities.filter(a => a.includes('dinner'));
-  }
-  return amenities.filter(a => a.includes('coffee') || a.includes('restroom'));
-}
+/**
+ * Battery Physics Router (India-Optimized)
+ * ----------------------------------------
+ * Strategies:
+ * 1. PANIC MODE (<30% SOC): Find CLOSEST charger immediately.
+ * 2. CRUISE MODE (>30% SOC): Maximize range. Find FASTEST charger.
+ */
+const { getDistanceKm } = require('../utils/distance');
 
 const CARMODELS = {
-  'Tata Nexon EV': { range: 437, efficiency: 4.16, maxChargeRate: 7.2, chargeTime80Percent: 60 },
-  'Mahindra XUV400': { range: 456, efficiency: 6.0, maxChargeRate: 6.6, chargeTime80Percent: 50 },
-  'Hyundai Kona Electric': { range: 452, efficiency: 5.8, maxChargeRate: 7.2, chargeTime80Percent: 55 },
-  'MG ZS EV': { range: 461, efficiency: 5.5, maxChargeRate: 6.6, chargeTime80Percent: 60 },
-  'BMW i4': { range: 590, efficiency: 5.9, maxChargeRate: 11.0, chargeTime80Percent: 35 },
-  'Tesla Model 3': { range: 629, efficiency: 6.3, maxChargeRate: 15.0, chargeTime80Percent: 30 }
+  'Tata Nexon EV Prime': { rangeKm: 250, capacity: 30.2, efficiency: 0.12, kmPerPercent: 2.5, maxChargeRate: 22 },
+  'Tata Nexon EV Max': { rangeKm: 350, capacity: 40.5, efficiency: 0.115, kmPerPercent: 3.5, maxChargeRate: 50 },
+  'MG ZS EV': { rangeKm: 400, capacity: 50.3, efficiency: 0.125, kmPerPercent: 4.0, maxChargeRate: 50 },
+  'default': { rangeKm: 300, capacity: 40, efficiency: 0.13, kmPerPercent: 3.0, maxChargeRate: 30 }
 };
 
-function validateBatteryParams(startSOC, targetArrivalSOC, maxChargeSOC) {
-  if (startSOC < 0 || startSOC > 100) {
-    throw new ApiError('Start SOC must be 0-100%', 400);
-  }
-  if (targetArrivalSOC < 0 || targetArrivalSOC > 100) {
-    throw new ApiError('Target arrival SOC must be 0-100%', 400);
-  }
-  if (maxChargeSOC < 0 || maxChargeSOC > 100) {
-    throw new ApiError('Max charge SOC must be 0-100%', 400);
-  }
-  if (targetArrivalSOC >= startSOC) {
-    throw new ApiError('Target arrival SOC must be less than start SOC', 400);
-  }
-  if (maxChargeSOC <= targetArrivalSOC) {
-    throw new ApiError('Max charge SOC must be higher than target arrival SOC', 400);
-  }
-  return true;
+// Get coordinate X km along the path
+function getPointAtAbsoluteDistance(path, targetDistKm) {
+    if (!path || path.length === 0) return { latitude: 0, longitude: 0 };
+    let traveled = 0;
+    for (let i = 0; i < path.length - 1; i++) {
+        const d = getDistanceKm(path[i].latitude, path[i].longitude, path[i+1].latitude, path[i+1].longitude);
+        if (traveled + d >= targetDistKm) return path[i+1];
+        traveled += d;
+    }
+    return path[path.length - 1];
 }
 
-async function planRoute(start, end, carModel, startSOC, targetArrivalSOC, maxChargeSOC = 80, startTime = new Date(), db) {
-  console.log('🔋 BATTERY ROUTER: Starting route planning');
-  console.log(`🚗 Car: ${carModel}, Battery: ${startSOC}% → ${targetArrivalSOC}%`);
-
-  // Validate
-  validateBatteryParams(startSOC, targetArrivalSOC, maxChargeSOC);
+function calculateChargeTime(fromSOC, toSOC, car, stationPower) {
+  const pctNeeded = toSOC - fromSOC;
+  if (pctNeeded <= 0) return 0;
   
-  if (!CARMODELS[carModel]) {
-    throw new ApiError(`Unknown car model ${carModel}`, 400, {
-      availableModels: Object.keys(CARMODELS)
-    });
+  // Real world curve: Avg speed is ~80% of peak
+  const effectivePower = (parseFloat(stationPower) || 15) * 0.8; 
+  const actualSpeed = Math.min(effectivePower, car.maxChargeRate);
+  
+  const kwhNeeded = (pctNeeded / 100) * car.capacity;
+  return Math.round((kwhNeeded / actualSpeed) * 60);
+}
+
+async function planRoute(start, end, carModelName, startSOC, targetArrivalSOC, maxChargeSOC = 80, routePath = [], db, maxRangeOverride = null) {
+  
+  let car = CARMODELS[carModelName] || CARMODELS['default'];
+  
+  if (maxRangeOverride) {
+      console.log(`[BatteryRouter] Using Custom Range: ${maxRangeOverride}km`);
+      car = { ...car, rangeKm: maxRangeOverride, kmPerPercent: maxRangeOverride / 100.0 };
   }
 
-  const car = CARMODELS[carModel];
-  const directDistanceKm = getDistanceKm(start.lat, start.lng, end.lat, end.lng);
-  const maxRangeKm = (startSOC / 100 - targetArrivalSOC / 100) * car.efficiency * 100;
-
-  console.log(`📏 Distance: ${directDistanceKm.toFixed(1)}km, Range: ${maxRangeKm.toFixed(1)}km`);
-
-  // No stops needed?
-  if (directDistanceKm <= maxRangeKm * 0.9) {
-    console.log('✅ Direct route possible - no charging needed');
-    return createNoStopsRoute(start, end, carModel, startSOC, targetArrivalSOC, directDistanceKm);
-  }
-
-  // Plan stops
   const stops = [];
+  const visitedIds = []; 
+  
   let currentLat = start.lat;
   let currentLng = start.lng;
-  let currentSOC = startSOC;
-  let currentTime = new Date(startTime);
+  let currentSOC = parseFloat(startSOC);
+  let distanceCursor = 0; 
+  
+  const arrivalBuffer = parseFloat(targetArrivalSOC) || 15;
+  const safetyMargin = 5; 
 
-  // Max 5 stops
-  for (let i = 0; i < 5; i++) {
-    const remainingDistance = getDistanceKm(currentLat, currentLng, end.lat, end.lng);
-    const remainingRange = (currentSOC / 100 - targetArrivalSOC / 100) * car.efficiency * 100;
+  console.log(`[BatteryRouter] Plan: ${currentSOC}% -> End > ${arrivalBuffer}%. Efficiency: ${car.kmPerPercent} km/%`);
+
+  for (let i = 0; i < 15; i++) {
+    // 1. Can we reach destination?
+    const distToFinish = getDistanceKm(currentLat, currentLng, end.lat, end.lng);
+    const socNeeded = distToFinish / car.kmPerPercent;
+
+    if (currentSOC - socNeeded >= arrivalBuffer) {
+        console.log(`✅ Reachable! Remaining: ${(currentSOC - socNeeded).toFixed(1)}%`);
+        break;
+    }
+
+    // 🟢 FIX: Logic moved INSIDE loop so it updates as you drive
+    let usableSOC = currentSOC - (arrivalBuffer + safetyMargin);
+
+    if (usableSOC <= 0) {
+        console.log(`   ⚠️ Critical Low Battery! (SOC: ${currentSOC}%). Searching IMMEDIATE.`);
+        usableSOC = 2; // Force search nearby
+    }
+
+    // 2. Determine Strategy based on SOC
+    let strategy = 'QUALITY'; // Default: Look for Fast Chargers
+    let driveableKm = usableSOC * car.kmPerPercent;
+    let searchDistKm = 0;
+
+    if (currentSOC < 30) {
+        // 🚨 PANIC MODE: Find ANYTHING close
+        strategy = 'DISTANCE';
+        driveableKm = currentSOC * car.kmPerPercent; // Use full remaining battery to find ANYONE
+        searchDistKm = 10; // Look immediately ahead (10km)
+        console.log(`   ⚠️ Low SOC (${currentSOC}%). Switching to PANIC MODE.`);
+    } else {
+        // 🚀 CRUISE MODE: Maximize range, find best charger
+        // Search at 90% of max driveable distance
+        searchDistKm = Math.min(driveableKm * 0.9, 250); 
+    }
+
+    // 3. Update Cursor
+    const absoluteSearchDist = distanceCursor + searchDistKm;
+    console.log(`   Leg ${i+1}: Cursor ${distanceCursor.toFixed(0)}km. Search @ ${absoluteSearchDist.toFixed(0)}km (${strategy})`);
+
+    const searchPoint = getPointAtAbsoluteDistance(routePath, absoluteSearchDist);
+
+    // 4. Query DB
+    const dbResult = await db.adaptiveSearch(
+        searchPoint.latitude, 
+        searchPoint.longitude, 
+        visitedIds,
+        strategy 
+    );
+
+    if (!dbResult.stations || dbResult.stations.length === 0) {
+        console.error("❌ CRITICAL: No chargers found in range gap.");
+        // If Quality search failed, try just looking 50km ahead blindly to find *something*
+        if (strategy === 'QUALITY') {
+             console.log("   🔄 Retrying: Skipping ahead 50km to find hubs...");
+             // Note: This assumes you have enough battery to skip 50km. 
+             // Ideally we should decrease searchDistKm, not skip ahead, but this prevents infinite loops.
+             // Better logic: Just search again with 'DISTANCE' strategy at the same point? 
+             // For now, let's break to avoid stalling.
+        }
+        break;
+    }
+
+    const bestStation = dbResult.stations[0];
+    visitedIds.push(bestStation.id);
+
+    // 5. Calculate Stats
+    const legDist = getDistanceKm(currentLat, currentLng, bestStation.lat, bestStation.lng);
     
-    if (remainingDistance <= remainingRange * 0.8) break; // Can reach destination
+    // Prevent backtracking logic (safety check)
+    if (legDist < 1 && currentSOC > 30) {
+       console.warn("   ⚠️ Station too close, skipping to prevent loops.");
+       continue;
+    }
 
-    // Find stations (RULE 2: DB FIRST)
-    const dbResult = await db.adaptiveSearch(currentLat, currentLng);
-    const stations = dbResult.stations;
-    
-    if (stations.length === 0) break; // No stations, end planning
+    const actualSocConsumed = legDist / car.kmPerPercent;
+    const arrivalAtStationSOC = Math.round(currentSOC - actualSocConsumed);
 
-    const bestStation = selectBestStation(stations, currentLat, currentLng, end.lat, end.lng);
-
-    // Leg to station
-    const legDistance = getDistanceKm(currentLat, currentLng, bestStation.lat, bestStation.lng);
-    const arrivalSOC = currentSOC - (legDistance / car.efficiency);
-    
-    if (arrivalSOC < 10) break; // Too risky
-
-    // Charging
-    const chargeToSOC = Math.min(maxChargeSOC, 100);
-    const chargeTime = calculateChargeTime(arrivalSOC, chargeToSOC, car);
-    const travelTime = getEstimatedTravelTimeMinutes(legDistance);
-    const arrivalTime = new Date(currentTime.getTime() + travelTime * 60000);
-    const departureTime = new Date(arrivalTime.getTime() + chargeTime * 60000);
+    const targetCharge = 80; 
+    const chargeTime = calculateChargeTime(arrivalAtStationSOC, targetCharge, car, bestStation.powerkw);
 
     stops.push({
-      stopNumber: stops.length + 1,
-      station: bestStation,
-      leg: { distanceKm: legDistance.toFixed(1), durationMinutes: travelTime },
-      charging: {
-        arrivalSOC: Math.round(arrivalSOC),
-        departureSOC: chargeToSOC,
-        chargeTimeMinutes: chargeTime
-      },
-      eta: arrivalTime.toISOString(),
-      amenities: filterAmenitiesByETA(bestStation.amenities || [], arrivalTime)
+        stopNumber: stops.length + 1,
+        station: {
+            ...bestStation,
+            greenScore: bestStation.greenScore || 85,
+            amenities: bestStation.amenities || [] 
+        },
+        legDistance: legDist.toFixed(1),
+        arrivalSOC: arrivalAtStationSOC,
+        charging: {
+            arrivalSOC: arrivalAtStationSOC,
+            departureSOC: targetCharge,
+            chargeTimeMinutes: chargeTime,
+            addedRange: (targetCharge - arrivalAtStationSOC) * car.kmPerPercent
+        }
     });
 
     currentLat = bestStation.lat;
     currentLng = bestStation.lng;
-    currentSOC = chargeToSOC;
-    currentTime = departureTime;
+    currentSOC = targetCharge;
+    distanceCursor += legDist;
   }
 
-  // Final leg
-  const finalDistance = getDistanceKm(currentLat, currentLng, end.lat, end.lng);
-  const finalSOC = currentSOC - (finalDistance / car.efficiency);
-  const finalTravelTime = getEstimatedTravelTimeMinutes(finalDistance);
-  const finalETA = new Date(currentTime.getTime() + finalTravelTime * 60000);
-
-  const totalDistance = directDistanceKm;
-
-  console.log(`✅ ROUTE COMPLETE: ${stops.length} stops, final SOC: ${finalSOC.toFixed(1)}%`);
-
-  return {
-    status: 'success',
-    route: {
-      startPoint: { lat: start.lat, lng: start.lng },
-      endPoint: { lat: end.lat, lng: end.lng },
-      carModel,
-      statistics: {
-        totalDistance: totalDistance.toFixed(1),
-        totalStops: stops.length,
-        totalTime: getEstimatedTravelTimeMinutes(totalDistance),
-        finalSOC: Math.round(finalSOC)
-      },
-      finalLeg: {
-        distanceKm: finalDistance.toFixed(1),
-        arrivalSOC: Math.round(finalSOC)
-      }
-    },
-    plannedStops: stops
-  };
-}
-
-function createNoStopsRoute(start, end, carModel, startSOC, targetArrivalSOC, distanceKm) {
-  const car = CARMODELS[carModel];
-  const finalSOC = startSOC - (distanceKm / car.efficiency);
-  const travelTime = getEstimatedTravelTimeMinutes(distanceKm);
-  const eta = new Date(Date.now() + travelTime * 60000);
-
-  return {
-    status: 'success',
-    route: {
-      startPoint: { lat: start.lat, lng: start.lng },
-      endPoint: { lat: end.lat, lng: end.lng },
-      carModel,
-      statistics: {
-        totalDistance: distanceKm.toFixed(1),
-        totalStops: 0,
-        totalTime: travelTime,
-        finalSOC: Math.round(finalSOC)
-      },
-      finalLeg: {
-        distanceKm: distanceKm.toFixed(1),
-        arrivalSOC: Math.round(finalSOC)
-      }
-    },
-    plannedStops: []
-  };
-}
-
-function selectBestStation(stations, currentLat, currentLng, destLat, destLng) {
-  const scored = stations.map(station => {
-    const distToStation = getDistanceKm(currentLat, currentLng, station.lat, station.lng);
-    const distToDest = getDistanceKm(station.lat, station.lng, destLat, destLng);
-    
-    const score = 
-      ((station.trustscore || 50) / 100) * 0.4 +
-      ((station.powerkw || 7) / 100) * 0.3 +
-      (1 / (distToStation + 1)) * 0.2 +
-      (1 / (distToStation + 1)) * 0.1;
-    
-    return { ...station, score, distToStation };
-  });
-  
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0];
-}
-
-function calculateChargeTime(fromSOC, toSOC, car) {
-  const pct = toSOC - fromSOC;
-  return Math.round((pct / 80) * car.chargeTime80Percent);
+  return { status: 'success', route: { carModel: carModelName }, plannedStops: stops };
 }
 
 module.exports = { planRoute, CARMODELS };

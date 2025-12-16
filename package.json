@@ -12,6 +12,7 @@
     "express": "^4.18.2",
     "geohash": "^0.0.1",
     "ngeohash": "^0.6.3",
+    "node-cron": "^4.2.1",
     "pg": "^8.10.0"
   },
   "devDependencies": {
@@ -19,5 +20,10 @@
     "jest": "^29.5.0",
     "nodemon": "^2.0.20",
     "supertest": "^6.3.3"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "update-db": "node scripts/refreshGovData.js"
   }
 }

@@ -1,20 +1,19 @@
 /**
- * Distance calculations for route planning
- * Haversine formula for great-circle distance between two points on Earth
+ * Distance & Battery Math Utilities
+ * Status: UPDATED (Fixed 0-coord bug, Standardized Battery Model)
  */
 
 const EARTH_RADIUS_KM = 6371;
 
 /**
  * Calculate distance between two lat/lng points using Haversine formula
- * @param {number} lat1 - Latitude of point 1
- * @param {number} lng1 - Longitude of point 1
- * @param {number} lat2 - Latitude of point 2
- * @param {number} lng2 - Longitude of point 2
- * @returns {number} - Distance in kilometers
  */
 function getDistanceKm(lat1, lng1, lat2, lng2) {
-  if (!lat1 || !lng1 || !lat2 || !lng2) {
+  // ✅ FIX: Check for undefined specifically, allowing valid '0' coordinates
+  if (
+    lat1 === undefined || lng1 === undefined ||
+    lat2 === undefined || lng2 === undefined
+  ) {
     return 0;
   }
 
@@ -34,41 +33,36 @@ function getDistanceKm(lat1, lng1, lat2, lng2) {
   return parseFloat(distanceKm.toFixed(2));
 }
 
-/**
- * Convert degrees to radians
- * @param {number} degrees - Angle in degrees
- * @returns {number} - Angle in radians
- */
 function toRad(degrees) {
   return (degrees * Math.PI) / 180;
 }
 
-/**
- * Calculate estimated travel time between two points
- * Assumes average speed of 100 km/h (typical highway speed)
- * @param {number} distanceKm - Distance in kilometers
- * @param {number} avgSpeedKmh - Average speed in km/h (default 100)
- * @returns {number} - Time in minutes
- */
 function getEstimatedTravelTimeMinutes(distanceKm, avgSpeedKmh = 100) {
   if (!distanceKm || distanceKm <= 0) return 0;
   return Math.round((distanceKm / avgSpeedKmh) * 60);
 }
 
 /**
- * Calculate battery consumption for a distance
- * @param {number} distanceKm - Distance in kilometers
- * @param {number} efficiencyKmPerPercent - Km per 1% battery (e.g., 3 km/%)
- * @returns {number} - Battery percentage consumed
+ * Calculate battery consumption (SOC %)
+ * ✅ IMPROVEMENT: Canonical Model (kWh/km / Capacity)
+ * @param {number} distanceKm - Distance to travel
+ * @param {number} efficiencyKWhPerKm - Car efficiency (e.g., 0.12 kWh/km)
+ * @param {number} batteryCapacityKWh - Total Battery Capacity (e.g., 30.2 kWh)
+ * @returns {number} - Percentage of battery consumed
  */
-function getBatteryConsumption(distanceKm, efficiencyKmPerPercent = 3) {
-  if (!distanceKm || !efficiencyKmPerPercent) return 0;
-  return parseFloat((distanceKm / efficiencyKmPerPercent).toFixed(2));
+function calculateSOCConsumption(distanceKm, efficiencyKWhPerKm, batteryCapacityKWh) {
+    if (!distanceKm || !efficiencyKWhPerKm || !batteryCapacityKWh) return 0;
+    
+    // Formula: (Energy Needed / Total Capacity) * 100
+    const energyNeeded = distanceKm * efficiencyKWhPerKm;
+    const socConsumed = (energyNeeded / batteryCapacityKWh) * 100;
+    
+    return parseFloat(socConsumed.toFixed(2));
 }
 
 module.exports = {
   getDistanceKm,
   getEstimatedTravelTimeMinutes,
-  getBatteryConsumption,
+  calculateSOCConsumption,
   EARTH_RADIUS_KM,
 };

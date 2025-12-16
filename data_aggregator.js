@@ -1,233 +1,210 @@
 /**
- * VOLTPATH BACKEND - DATA AGGREGATOR ENGINE
+ * VOLTPATH BACKEND - DATA AGGREGATOR
+ * STATUS: OPTIMIZED (Dynamic Resolution + Cost Control + Smart Amenities)
  */
 
 const { Pool } = require('pg'); 
 const dotenv = require('dotenv');
-const geohash = require('geohash'); 
+const geohash = require('ngeohash'); 
 const mergeData = require('./src/merger/engine');
-const axios = require('axios'); // Ensure axios is imported
+
+// Import Fetchers
+const googleFetcher = require('./src/fetchers/googleFetcher'); 
+const ocmFetcher = require('./src/fetchers/ocmFetcher');
+const govFetcher = require('./src/fetchers/govFetcher');
+const rapidFetcher = require('./src/fetchers/rapidApiFetcher');
+const amenityFetcher = require('./src/fetchers/amenityFetcher');
+const { linkAmenitiesToStations } = require('./src/utils/proximity'); 
 
 dotenv.config();
 
+// Database Configuration
 const dbConfig = {
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
     database: process.env.DB_NAME || 'voltpath_db',
-    password: process.env.DB_PASSWORD || 'password123',
+    password: process.env.DB_PASSWORD,
     port: process.env.DB_PORT || 5432,
-    max: 10, 
+    max: 50, 
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
 };
-
-// Ensure these paths match where you placed the files
-const googleFetcher = require('./src/fetchers/googleFetcher'); 
-const ocmFetcher = require('./src/fetchers/ocmFetcher');
-const govFetcher = require('./src/fetchers/govFetcher');
-const osmFetcher = require('./src/fetchers/osmFetcher');
 
 const db = new Pool(dbConfig);
 
-function normalizeStation(rawData, source) {
-    const lat = parseFloat(rawData.lat);
-    const lng = parseFloat(rawData.lng);
+// Constants
+const TILE_PRECISION = 5;       // ~5km radius tiles
+const CACHE_VALIDITY_DAYS = 7;  // Refresh data weekly
+const BATCH_SIZE = 8;           // Parallel tile processing limit
 
-    if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return null;
+// Helper: Safe Fetch with Timeout
+const fetchSafe = (promise, ms) => 
+    Promise.race([
+        promise,
+        new Promise(resolve => setTimeout(() => resolve([]), ms)) 
+    ]).catch(e => []);
 
-    let geohashValue;
-    try {
-        geohashValue = geohash.encode(lat, lng, 9);
-    } catch (err) {
-        return null;
+// Helper: Haversine Distance (km)
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371; 
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+// 🟢 SMART FILTER: Skips tiles based on dynamic distance (skipKm)
+function filterRedundantTiles(tiles, skipKm) {
+    const unique = [];
+    
+    for (const tile of tiles) {
+        const { latitude: lat, longitude: lon } = geohash.decode(tile);
+        
+        // Check if this tile is too close (< skipKm) to any tile we've already accepted
+        const isRedundant = unique.some(acceptedTile => {
+            const { latitude: aLat, longitude: aLon } = geohash.decode(acceptedTile);
+            const dist = getDistanceKm(lat, lon, aLat, aLon);
+            return dist < skipKm;
+        });
+
+        if (!isRedundant) {
+            unique.push(tile);
+        }
+    }
+    return unique;
+}
+
+/**
+ * Main Orchestrator Function
+ * @param {Array} points - List of lat/lng points along the route
+ * @param {number} skipKm - Resolution (e.g. 3km for city, 15km for highway)
+ */
+async function processRouteTiles(points, skipKm = 3) {
+    if (!points || points.length === 0) return;
+
+    // 1. Generate Raw Geohashes from Route Points
+    const rawTiles = new Set();
+    points.forEach(p => {
+        try {
+            const hash = geohash.encode(p.latitude, p.longitude, TILE_PRECISION);
+            rawTiles.add(hash);
+        } catch (e) {}
+    });
+    
+    const allTiles = Array.from(rawTiles);
+
+    // 2. Apply Dynamic Skip Logic (Reduces scanning load)
+    const optimizedTiles = filterRedundantTiles(allTiles, skipKm);
+    
+    console.log(`[Orchestrator] Optimized: Reduced ${allTiles.length} raw tiles to ${optimizedTiles.length} distinct scans (Resolution: ${skipKm}km).`);
+
+    // 3. Filter Stale Tiles (Don't re-fetch if we have recent data)
+    const staleTiles = await filterStaleTiles(optimizedTiles);
+
+    if (staleTiles.length === 0) {
+        console.log(`[Orchestrator] ✅ All tiles fresh.`);
+        return;
     }
 
-    return {
-        id: `${source}-${geohashValue}`,
-        geohash: geohashValue,
-        name: rawData.name || 'Unknown Station',
-        lat: lat,
-        lng: lng,
-        operator: rawData.operator || source,
-        powerkw: rawData.power_kw || 0, // Mapped to DB column powerkw
-        connectortypes: rawData.charger_type || 'Unknown', // Mapped to connectortypes
-        address: rawData.address || 'N/A',
-        source: source,
-        amenities: rawData.amenities || {}
-    };
+    console.log(`[Orchestrator] 🚀 Updating ${staleTiles.length} tiles in batches of ${BATCH_SIZE}...`);
+
+    // 4. Process Batch by Batch
+    for (let i = 0; i < staleTiles.length; i += BATCH_SIZE) {
+        const batch = staleTiles.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(tileId => ingestTile(tileId)));
+    }
+    console.log(`[Orchestrator] ✅ Ingestion complete.`);
 }
 
- // --- HELPER: Delay function (Required for Google Next Page Token) ---
-// Google requires a short delay (2 sec) before the next_page_token becomes valid
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function fetchGoogleRawWithPagination(lat, lng, radius) {
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-    let allResults = [];
-    let nextPageToken = null;
-    
-    // Initial URL
-    let url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=point_of_interest&keyword=EV%20Charging%20Station&key=${apiKey}`;
-
-    do {
-        if (nextPageToken) {
-            // ⚠️ CRITICAL: Google requires a 2-second delay before the token is valid
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?pagetoken=${nextPageToken}&key=${apiKey}`;
-        }
-
-        try {
-            const response = await axios.get(url);
-            const data = response.data;
-            
-            if (data.results && data.results.length > 0) {
-                allResults = [...allResults, ...data.results];
-            }
-
-            // Check if there is another page
-            nextPageToken = data.next_page_token;
-
-        } catch (err) {
-            console.error('[Google Loop] Error:', err.message);
-            break; 
-        }
-    } while (nextPageToken);
-
-    return allResults;
-}
-
-async function fetchAndSaveExternalData(startLat, startLng, endLat, endLng) {
-    console.log(`[Data Engine] 🌐 Checking for external updates...`);
-    //let externalData = []; // Call APIs here in prod
-    //let mockGovData = [];
-   // const mergedResults = mergeData([], [], mockGovData, []);
-    console.log(`Dataaggregator📍 Region: (${startLat},${startLng}) to (${endLat},${endLng})`);
-    console.log('[Data Engine] 🔑 Checking Keys:', {
-        Google: process.env.GOOGLE_MAPS_API_KEY ? '✅ Present' : '❌ Missing',
-        OCM: process.env.OCM_API_KEY ? '✅ Present' : '❌ Missing',
-        Gov: process.env.GOV_API_KEY ? '✅ Present' : '❌ Missing'
-    });
-
-    const searchRadius = 50000; // 60km
+// Helper: Check DB for existing valid tiles
+async function filterStaleTiles(allTiles) {
+    if (allTiles.length === 0) return [];
+    const query = `SELECT tile_id FROM tile_cache WHERE tile_id = ANY($1) AND (status = 'success' AND last_fetched > NOW() - INTERVAL '${CACHE_VALIDITY_DAYS} days')`;
     try {
-        const [googleData, ocmData, govData] = await Promise.all([
+        const res = await db.query(query, [allTiles]);
+        const freshTiles = new Set(res.rows.map(r => r.tile_id));
+        return allTiles.filter(t => !freshTiles.has(t));
+    } catch (e) { return allTiles; }
+}
 
-            // Google: Used custom paginated fetcher to get ALL results (Page 1, 2, 3)
-            fetchGoogleRawWithPagination(startLat, startLng, searchRadius),
+// 🔵 WORKER: Process a Single Tile
+async function ingestTile(tileId) {
+    const client = await db.connect();
+    try {
+        await client.query('BEGIN');
+        
+        // Advisory Lock to prevent duplicate processing
+        const lockRes = await client.query(`SELECT pg_try_advisory_xact_lock(hashtext($1)) as locked`, [tileId]);
+        if (!lockRes.rows[0].locked) { await client.query('ROLLBACK'); return; }
 
-            // Google Fetcher
-            googleFetcher.fetchStations(startLat, startLng, searchRadius)
-                .catch(err => { console.error('❌ Google API Failed:', err.message); return []; }),
-            
-            // OCM Fetcher
-            ocmFetcher.fetchStations(startLat, startLng, searchRadius)
-                .catch(err => { console.error('❌ OCM API Failed:', err.message); return []; }),
+        const { latitude: lat, longitude: lng } = geohash.decode(tileId);
+        const searchRadius = 5000; 
 
-            // Gov Fetcher
-            govFetcher.fetchStations(startLat, startLng, searchRadius)
-                .catch(err => { console.error('❌ Gov API Failed:', err.message); return []; })
+        // 🟢 STEP 1: Fetch Stations (Parallel)
+        // Note: Google Fetcher is disabled to save costs. Uncomment if budget allows.
+        const [ocmData, govData, rapidData] = await Promise.all([
+            fetchSafe(ocmFetcher.fetchStations(lat, lng, searchRadius), 8000),
+            fetchSafe(govFetcher.fetchStations(lat, lng, searchRadius), 2000),
+            // fetchSafe(googleFetcher.fetchStations(lat, lng, searchRadius), 8000), // 💰 UNCOMMENT TO ENABLE GOOGLE ($$$)
+            fetchSafe(rapidFetcher.fetchStations(lat, lng, searchRadius), 8000)
         ]);
 
-        console.log(`\n[Data Engine] 📥 RAW DATA RECEIVED:`);
-        console.log(`   - Google: ${googleData.length}`);
-        console.log(`   - OCM:    ${ocmData.length}`);
-        console.log(`   - Gov:    ${govData.length}`);
+        // Merge Results (Google passed as empty array [])
+        let mergedStations = mergeData([], ocmData, govData, [], rapidData);
 
-        // 4. MERGE DATA
-        // Pass the REAL data arrays to the merger
-        const mergedResults = mergeData(googleData, ocmData, govData, []);
+        // 🟢 STEP 2: Conditional Amenity Fetching
+        // Only fetch amenities if we actually found chargers. Saves OSM quota.
+        if (mergedStations.length > 0) {
+            // console.log(`[Aggregator] Found ${mergedStations.length} stations. Fetching amenities...`);
+            
+            // 4s Timeout for OSM
+            const amenityResult = await fetchSafe(amenityFetcher(lat, lng, searchRadius), 4000);
+            
+            if (amenityResult.amenities?.length > 0) {
+                mergedStations = linkAmenitiesToStations(mergedStations, amenityResult.amenities);
+            }
+        } else {
+            // console.log(`[Aggregator] No stations found in tile. Skipping amenity fetch.`);
+        }
 
-        // 5. NORMALIZE FOR DB
-        const dbStations = mergedResults.map(s => ({
-            id: s.id,
-            geohash: s.geohash,
-            name: s.name,
-            lat: s.lat,
-            lng: s.lng,
-            address: s.address || '',
-            operator: s.operator || '',
-            powerkw: s.powerkw || 0,
-            connectortypes: JSON.stringify(s.connectorTypes || []),
-            trustscore: s.trustscore || 50,
-            sources: s.sources,
-            amenities: s.amenities || [],
-            externalIds: s.externalIds,
-            rawData: s.rawData
-        }));
+        // 🟢 STEP 3: Save to Database
+        await saveStationsTransactional(client, mergedStations);
         
-        console.log(`[Data Engine] 🌐 Fetched and normalized ${dbStations.length} external stations.`)  ;
-        if (dbStations.length > 0) {
-            await saveToDatabase(dbStations); 
-        console.log(`[Data Engine] ✅ Database Update Complete.`);
-            } else {
-                console.warn(`[Data Engine] ⚠️ No stations to save.`);
-              } 
-    } catch (error) {
-        console.error('[Data Engine] ❌ Critical Fetch Error:', error);
-    }
+        // Update Cache Status
+        await client.query(`INSERT INTO tile_cache (tile_id, last_fetched, status) VALUES ($1, NOW(), 'success') ON CONFLICT (tile_id) DO UPDATE SET last_fetched = NOW(), status = 'success'`, [tileId]);
+        await client.query('COMMIT');
+
+    } catch (e) {
+        await client.query('ROLLBACK');
+        console.error(`[Ingest] ❌ Error tile ${tileId}:`, e.message);
+    } finally { client.release(); }
 }
 
-const toPgArray = (input) => {
-    // 1. Handle null/undefined
-    if (!input) return '{}';
-    
-    // 2. Force into array if it's a single item (string/number)
-    const arr = Array.isArray(input) ? input : [input];
-    
-    // 3. Handle empty array
-    if (arr.length === 0) return '{}'; 
+// Helper: Convert array to PostgreSQL text array format
+const toPgArray = (arr) => arr && arr.length > 0 ? `{${arr.map(i => `"${(i || '').toString().replace(/"/g, '\\"')}"`).join(',')}}` : '{}';
 
-    // 4. Map and Escape
-    const items = arr.map(item => {
-        if (item === null || item === undefined) return 'NULL';
-        return `"${item.toString().replace(/"/g, '\\"')}"`;
-    });
-    
-    return `{${items.join(',')}}`;
-};
+// Transactional Save
+async function saveStationsTransactional(client, stations) {
+    if (stations.length === 0) return;
+    for (const s of stations) {
+        const safePower = isNaN(parseFloat(s.powerkw)) ? 0 : parseFloat(s.powerkw);
 
-async function saveToDatabase(finalStations) {
-    if (finalStations.length === 0) return;
-
-    // 🔴 FIX: Updated INSERT to match 'stationsmaster' schema
-    const INSERT_QUERY = `
-        INSERT INTO stationsmaster (
-            id, geohash, name, lat, lng, 
-            geog, address, operator, powerkw, 
-            connectortypes, trustscore, sources, amenities, lastupdatedat
-        )
-        VALUES (
-            $1, $2, $3, $4::numeric, $5::numeric,
-            ST_SetSRID(ST_MakePoint($5::numeric, $4::numeric), 4326), $6, $7, $8, 
-            $9, $10, $11, $12, NOW()
-        )
-        ON CONFLICT (id) DO NOTHING;
-    `;
-
-    for (const station of finalStations) {
-        try {
-            await db.query(INSERT_QUERY, [
-                station.id,
-                station.geohash,
-                station.name,
-                station.lat, 
-                station.lng,
-                // $6 starts here (address)
-                station.address,
-                station.operator,
-                station.powerkw,
-                toPgArray(station.connectortypes || []),
-                station.trustscore || 50, // Default trustscore
-                toPgArray(station.sources || []), // sources
-                toPgArray(station.amenities || [])
-            ]);
-        } catch (error) {
-            console.error(`[Data Engine] DB Save Error (${station.name}):`, error.message);
+        // Upsert Station
+        await client.query(`
+            INSERT INTO stationsmaster (id, geohash, name, lat, lng, geog, address, operator, powerkw, connectortypes, trustscore, sources, lastupdatedat) 
+            VALUES ($1, $2, $3, $4::numeric, $5::numeric, ST_SetSRID(ST_MakePoint($5::numeric, $4::numeric), 4326), $6, $7, $8, $9, $10, $11, NOW())
+            ON CONFLICT (id) DO UPDATE SET trustscore = GREATEST($10, stationsmaster.trustscore), powerkw = GREATEST($8, stationsmaster.powerkw), lastupdatedat = NOW()
+        `, [s.id, s.geohash, s.name, parseFloat(s.lat), parseFloat(s.lng), s.address, s.operator, safePower, toPgArray(s.connectorTypes), s.trustscore, toPgArray(s.sources)]);
+        
+        // Save Amenities (if linked)
+        if (s.nearby_amenities) {
+            for (const am of s.nearby_amenities) {
+                await client.query(`INSERT INTO station_amenities (station_id, name, amenity_type, distance_m) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`, [s.id, am.name, (am.type || 'unknown').toLowerCase(), am.distance_meters || 0]);
+            }
         }
     }
 }
 
-module.exports = {
-    fetchAndSaveExternalData,
-    db 
-};
+module.exports = { processRouteTiles, db };

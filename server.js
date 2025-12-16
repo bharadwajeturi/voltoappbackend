@@ -2,6 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
+const cron = require('node-cron');
+const { exec } = require('child_process');
+
 // 1. IMPORT DB
 // Importing from 'data_aggregator' ensures we use the exact same DB instance 
 // that the fetching logic uses.
@@ -75,5 +78,14 @@ const startServer = async () => {
         process.exit(1);
     }
 };
+
+// 🟢 AUTOMATIC UPDATE: Run every Sunday at 3:00 AM
+cron.schedule('0 3 * * 0', () => {
+  console.log('[Cron] Triggering weekly Gov Data update...');
+  exec('node scripts/refreshGovData.js', (error, stdout, stderr) => {
+    if (error) console.error(`[Cron] Update Error: ${error.message}`);
+    else console.log(`[Cron] Output: ${stdout}`);
+  });
+});
 
 startServer();

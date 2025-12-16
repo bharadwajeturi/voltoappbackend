@@ -1,79 +1,92 @@
 /**
  * Rate Limiter for Google API
- * Ensures max 50 Google Places calls per minute
- * Adds delays between API calls to prevent throttling
- * 
- * RULE #1 Implementation: Never exceed 50 Google API calls/minute
+ * STATUS: PROTECTED (High Performance + Daily Hard Cap)
  */
 
 class RateLimiter {
-  constructor(maxCallsPerMinute = 50, windowMs = 60000) {
+  // 🟢 Added maxCallsPerDay (Default: 3000)
+  constructor(maxCallsPerMinute = 300, windowMs = 60000, maxCallsPerDay = 3000) {
     this.maxCallsPerMinute = maxCallsPerMinute;
     this.windowMs = windowMs;
+    this.maxCallsPerDay = maxCallsPerDay;
+
+    // Minute Window Trackers
     this.callCount = 0;
     this.windowStart = Date.now();
-    this.callHistory = [];
+
+    // Daily Window Trackers
+    this.dailyCount = 0;
+    this.currentDay = new Date().toLocaleDateString(); // e.g. "12/14/2025"
   }
 
   async wait() {
     const now = Date.now();
+    const today = new Date().toLocaleDateString();
+
+    // 1. DAILY RESET CHECK (Midnight Logic)
+    if (today !== this.currentDay) {
+        console.log(`[Rate Limiter] ☀️ New Day detected! Resetting daily count from ${this.dailyCount} to 0.`);
+        this.dailyCount = 0;
+        this.currentDay = today;
+        this.callCount = 0; // Reset minute counter too
+    }
+
+    // 2. DAILY HARD CAP (The Kill Switch)
+    if (this.dailyCount >= this.maxCallsPerDay) {
+        console.warn(`[Rate Limiter] 🛑 DAILY QUOTA EXCEEDED (${this.dailyCount}/${this.maxCallsPerDay}). Request blocked.`);
+        // We throw an error so the fetcher catches it and returns [] (empty list)
+        throw new Error('Daily Google API Quota Exceeded');
+    }
+
+    // 3. MINUTE WINDOW LOGIC (Sliding Window)
     const windowElapsed = now - this.windowStart;
 
-    // Reset counter every 60 seconds
     if (windowElapsed > this.windowMs) {
       this.callCount = 0;
       this.windowStart = now;
-      this.callHistory = [];
-      console.log(`[Rate Limiter] Window reset. Ready for next batch.`);
+      // console.log(`[Rate Limiter] Minute window reset.`);
     }
 
-    // If we've hit the limit, wait until window resets
     if (this.callCount >= this.maxCallsPerMinute) {
       const waitTime = this.windowMs - windowElapsed + 500;
       console.log(
-        `[Rate Limiter] ⚠️  Hit limit of ${this.maxCallsPerMinute} calls. ` +
-        `Waiting ${(waitTime / 1000).toFixed(1)}s until window resets...`
+        `[Rate Limiter] ⚠️ Minute Speed Limit (${this.maxCallsPerMinute}) Hit. Pausing for ${(waitTime / 1000).toFixed(1)}s...`
       );
-      
-      // Wait and then reset
       await new Promise(resolve => setTimeout(resolve, waitTime));
+      
       this.callCount = 0;
       this.windowStart = Date.now();
-      this.callHistory = [];
     }
 
+    // Increment Counters
     this.callCount++;
-    const timestamp = new Date().toISOString();
-    this.callHistory.push(timestamp);
-    
-    console.log(
-      `[Rate Limiter] Call ${this.callCount}/${this.maxCallsPerMinute} at ${timestamp}`
-    );
+    this.dailyCount++;
   }
 
-  async executeWithLimit(fn, delayMs = 200) {
-    // Wait for rate limit
-    await this.wait();
-    
-    // Add delay between calls
-    await new Promise(resolve => setTimeout(resolve, delayMs));
-    
-    // Execute the function
-    return fn();
+  async executeWithLimit(fn) {
+    try {
+        await this.wait();
+        return await fn();
+    } catch (error) {
+        if (error.message === 'Daily Google API Quota Exceeded') {
+            return { data: { results: [] } }; // Return empty result silently
+        }
+        throw error;
+    }
   }
 
   getStatus() {
     return {
-      currentCount: this.callCount,
-      maxPerWindow: this.maxCallsPerMinute,
-      windowMs: this.windowMs,
-      remaining: Math.max(0, this.maxCallsPerMinute - this.callCount),
-      callHistory: this.callHistory,
+      currentMinute: this.callCount,
+      minuteLimit: this.maxCallsPerMinute,
+      dailyUsed: this.dailyCount,
+      dailyLimit: this.maxCallsPerDay,
+      remainingToday: this.maxCallsPerDay - this.dailyCount
     };
   }
 }
 
-// Create singleton instance
-const rateLimiter = new RateLimiter(50, 60000);
+// 🟢 Export with 300 calls/min speed, but 3000 calls/day hard limit
+const rateLimiter = new RateLimiter(300, 60000, 3000); 
 
 module.exports = rateLimiter;
