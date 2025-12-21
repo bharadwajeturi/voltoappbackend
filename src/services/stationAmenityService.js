@@ -1,15 +1,9 @@
 /**
  * Station Amenity Service
- * -----------------------
- * Responsible for:
- * - Fetching restaurants ONCE per area
- * - Matching them to ALL nearby stations
- * - Saving relationships in station_amenities table
+ * STATUS: FIXED (Column Names & Deadlock Prevention)
  */
 
 const fetchRestaurantsForArea = require('../fetchers/osmFetcher');
-// FIX: Import db correctly from the root data_aggregator
-const { db } = require('../../data_aggregator'); 
 
 // Haversine distance in METERS
 function distanceMeters(lat1, lng1, lat2, lng2) {
@@ -25,84 +19,61 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-async function linkRestaurantsToStations(areaLat, areaLng) {
-  console.log('[AmenityService] Starting amenity enrichment');
+async function linkRestaurantsToStations(areaLat, areaLng, dbClient) {
+  // console.log('[AmenityService] Starting amenity enrichment');
 
   try {
-    // ✅ 1. Get stations from DB (2km area)
-    const stations = await db.query(
-        `SELECT id, lat, lng FROM stationsmaster 
-        WHERE ST_DWithin(
-        geog, 
-        ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, 
-        2000
-        )`,
-        [areaLng, areaLat]
+    // 1. Get stations from DB (2km area)
+    const stations = await dbClient.query(
+      `SELECT id, lat, lng FROM stationsmaster 
+       WHERE ST_DWithin(geog, ST_MakePoint($1, $2)::geography, 2000)`,
+      [areaLng, areaLat]
     );
 
-    if (stations.rows.length === 0) {
-        console.log('[AmenityService] No stations found in area');
-        return;
-    }
+    if (stations.rows.length === 0) return;
 
-    // ✅ 2. Fetch restaurants ONCE
-    const restaurants = await fetchRestaurantsForArea(areaLat, areaLng, 2000);
+    // 2. Fetch from OSM
+    const restaurants = await fetchRestaurantsForArea(areaLat, areaLng);
+    if (!restaurants || restaurants.length === 0) return;
 
-    if (restaurants.length === 0) {
-        console.log('[AmenityService] No restaurants found');
-        return;
-    }
+    // 3. Match & Save
+    // 🟢 Deadlock Fix: Jitter the start time slightly
+    await new Promise(r => setTimeout(r, Math.random() * 200));
 
-    // ✅ 3. Save relationships
-    // Note: If using 'db.pool', use that. If 'db' is the pool, use 'db'.
-    // data_aggregator exports 'db' which is a Pool.
-    const client = await db.connect(); 
-    try {
-        await client.query('BEGIN');
+    for (const station of stations.rows) {
+      for (const r of restaurants) {
+        const dist = distanceMeters(station.lat, station.lng, r.lat, r.lng);
 
-        for (const station of stations.rows) {
-        for (const r of restaurants) {
-            const dist = distanceMeters(
-            station.lat,
-            station.lng,
-            r.lat,
-            r.lng
-            );
-
-            // ✅ Your rule: 500 meters
-            if (dist <= 500) {
-            await client.query(
-                `
-                INSERT INTO station_amenities
-                (station_id, name, type, lat, lng, distance_m, source)
-                VALUES
-                ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT DO NOTHING
-                `,
-                [
-                station.id,
-                r.name,
-                r.type,
-                r.lat,
-                r.lng,
-                Math.round(dist),
-                r.source || 'osm'
-                ]
-            );
-            }
+        if (dist <= 500) {
+          await dbClient.query(
+            `
+            INSERT INTO station_amenities
+            (station_id, name, amenity_type, lat, lng, distance_m, source) 
+            VALUES
+            ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (station_id, name) DO NOTHING
+            `,
+            [
+              station.id,
+              r.name,
+              r.type || 'unknown', // 🟢 Fix: Ensure 'amenity_type' is never null
+              r.lat,
+              r.lng,
+              Math.round(dist),
+              r.source || 'osm'
+            ]
+          );
         }
-        }
-        
-        await client.query('COMMIT');
-        console.log(`[AmenityService] Linked amenities for ${stations.rows.length} stations`);
-    } catch (e) {
-        await client.query('ROLLBACK');
-        console.error('[AmenityService] Transaction failed:', e);
-    } finally {
-        client.release();
+      }
     }
-  } catch (error) {
-      console.error('[AmenityService] Error:', error);
+    
+    // console.log(`[AmenityService] Linked amenities for ${stations.rows.length} stations`);
+  } catch (e) {
+    if (e.code === '40P01') { // Deadlock code
+        console.warn('[AmenityService] Deadlock detected, skipping this batch.');
+    } else {
+        console.error('[AmenityService] Error:', e.message);
+    }
   }
 }
 

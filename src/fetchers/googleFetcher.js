@@ -1,113 +1,92 @@
 /**
- * Google Places API Fetcher
- * STATUS: STRICT (No Power Assumptions | Base Trust 70)
+ * Google Places Fetcher (Cost-Optimized v4.3)
+ * Strategy: "Cheap Discovery"
+ * Use Field Masking to get ID + Location for cheap.
  */
 
 const axios = require('axios');
 const rateLimiter = require('../utils/rateLimiter');
 const config = require('../config/configuration');
 const { isRelevantStation } = require('../utils/stationFilter');
-const { normalizePower } = require('../utils/normalization'); 
 
-// 🟢 BRAND MAPPING ONLY (No Power Assumptions)
-// We only use this to clean up the "Operator Name" for better UI.
-const BRAND_INTELLIGENCE = {
-    'tata': { operator: 'Tata Power' },
-    'tata power': { operator: 'Tata Power' },
-    'statiq': { operator: 'Statiq' },
-    'zeon': { operator: 'Zeon Charging' },
-    'jio-bp': { operator: 'Jio-bp Pulse' },
-    'electricfuel': { operator: 'ElectricFuel' },
-    'fortum': { operator: 'Fortum Charge & Drive' },
-    'charge and drive': { operator: 'Fortum Charge & Drive' },
-    'ather': { operator: 'Ather Grid' }, 
-    'ola': { operator: 'Ola Hypercharger' }
+// 🟢 BRAND INTELLIGENCE (For UI Cleanup only)
+const BRAND_MAP = {
+    'tata': 'Tata Power',
+    'statiq': 'Statiq',
+    'zeon': 'Zeon Charging',
+    'jio-bp': 'Jio-bp Pulse',
+    'shell': 'Shell Recharge',
+    'ather': 'Ather Grid',
+    'ola': 'Ola Hypercharger'
 };
 
-async function fetchStations(lat, lng, radiusMeters = 5000) {
+async function fetchStations(lat, lng, radiusMeters = 50000) {
   if (!lat || !lng) return [];
 
-  const startTime = Date.now();
+  // 🟢 1. Build Text Query (More effective/cheaper than Nearby Search for EV)
+  const textQuery = "EV Charging Station";
 
   try {
     const response = await rateLimiter.executeWithLimit(async () => {
-         return await axios.get('https://maps.googleapis.com/maps/api/place/nearbysearch/json', { 
-             params: {
-                location: `${lat},${lng}`,
-                radius: Math.min(radiusMeters, 50000),
-                type: 'electric_vehicle_charging_station',
-                // 🟢 Keep Keyword: Critical for finding brands like Statiq/Tata
-                keyword: 'EV Charging Station', 
-                key: config.keys.google,
+         return await axios.post(
+             'https://places.googleapis.com/v1/places:searchText',
+             {
+                 textQuery: textQuery,
+                 // Bias towards the tile center
+                 locationBias: {
+                     circle: {
+                         center: { latitude: lat, longitude: lng },
+                         radius: radiusMeters 
+                     }
+                 }
              },
-             timeout: 6000 
-         });
-    }, 100);
+             {
+                 headers: {
+                     'Content-Type': 'application/json',
+                     'X-Goog-Api-Key': config.keys.google,
+                     // 💰 FIELD MASKING: The Money Saver
+                     // Only fetch what we need to identify the station.
+                     'X-Goog-FieldMask': 'places.id,places.location,places.displayName,places.types'
+                 },
+                 timeout: 8000
+             }
+         );
+    });
 
-    const results = response.data.results || [];
+    const results = response.data.places || [];
 
     const stations = results.map(place => {
-      let finalName = place.name;
-      let finalOperator = 'Google Places';
+      const name = place.displayName?.text || 'Unknown Station';
       
-      // 🟢 RULE 1: Power is ALWAYS Unknown (0) for Google Brands
-      // Unless explicitly found (rare), we do not guess.
-      let estimatedPower = 0; 
+      // 🟢 COST FILTER: Discard 2-Wheeler Stations immediately
+      if (name.match(/scooter|bike|2w|two wheeler/i)) return null;
 
-      // 🟢 RULE 2: Base Trust is 70
-      let detectedTrust = 70;
-
-      // Brand Logic: Only fix the Name and Operator
-      const nameLower = finalName.toLowerCase();
-      
-      for (const [key, info] of Object.entries(BRAND_INTELLIGENCE)) {
-          if (nameLower.includes(key)) {
-              finalOperator = info.operator;
-              
-              // Clean up name (e.g. "Tata Power Charging Station" -> "Tata Power")
-              if (finalName === 'Electric Vehicle Charging Station') {
-                  finalName = `${info.operator} Station`;
-              }
-              break; 
-          }
-      }
-
-      // Fallback for generic names using Vicinity
-      if (finalName.toLowerCase() === 'electric vehicle charging station' && place.vicinity) {
-          const locationPart = place.vicinity.split(',')[0];
-          if (locationPart && locationPart.length > 3) {
-              finalName = `${locationPart} (EV Station)`;
-          }
+      // Operator Cleanup
+      let operator = 'Google Places';
+      const lowerName = name.toLowerCase();
+      for (const [key, val] of Object.entries(BRAND_MAP)) {
+          if (lowerName.includes(key)) operator = val;
       }
 
       return {
-        name: finalName || 'Unknown Station',
-        lat: place.geometry?.location?.lat,
-        lng: place.geometry?.location?.lng,
-        address: place.vicinity || '',
-        operator: finalOperator,
+        name: name,
+        lat: place.location?.latitude,
+        lng: place.location?.longitude,
+        address: '', // We don't pay for address in discovery phase
+        operator: operator,
         
-        // 🟢 STRICT: Normalize to 0 if unknown. 
-        // We pass '0' as the fallback so it doesn't default to 15 or 7.4
-        powerkw: normalizePower(0, 0), 
-        
-        // Connectors unknown
-        connectorTypes: ['Unknown'], 
-        
-        // 🟢 STRICT: Always 70
-        trustscore: detectedTrust,
-        
+        // 🟢 Power is 0 for now (Will be fixed by Brand Heuristic in DB)
+        powerkw: 0, 
+        connectorTypes: ['Unknown'],
+        trustscore: 70, // Base Google Trust
         amenities: place.types || [],
-        externalId: place.place_id,
+        externalId: place.id,
         source: 'google',
       };
-    })
-    // ⚠️ CRITICAL: Ensure your 'isRelevantStation' filter allows stations with powerkw = 0
-    .filter(station => isRelevantStation(station));
+    }).filter(s => s !== null && isRelevantStation(s));
 
-    const duration = Date.now() - startTime;
     if (stations.length > 0) {
-        console.log(`[Google] ✅ Found ${stations.length} stations in ${duration}ms`);
+        console.log(`[Google Sniper] 🎯 Discovered ${stations.length} candidates.`);
     }
 
     return stations;

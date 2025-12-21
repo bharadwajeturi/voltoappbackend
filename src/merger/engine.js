@@ -114,6 +114,10 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
   }
 
   console.log(`✅ Merge Complete. ${goldenRecords.length} unique stations ready.`);
+  console.log(`\n🔀 MERGE REPORT:`);
+console.log(`   - Inputs: Google(${validGoogle.length}), OCM(${validOCM.length}), Gov(${validGov.length}), Rapid(${validRapid.length})`);
+console.log(`   - 🏆 Golden Records Created: ${goldenRecords.length}`);
+console.log(`   - 👻 Ghosts Rejected (0kW): ${googleData.length + ocmData.length - validGoogle.length - validOCM.length}`);
   return goldenRecords;
 }
 

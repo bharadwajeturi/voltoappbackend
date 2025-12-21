@@ -44,8 +44,16 @@ function formatErrorResponse(error) {
  */
 function validateRequired(obj, requiredFields) {
   for (const field of requiredFields) {
-    if (!obj.hasOwnProperty(field) || obj[field] === null || obj[field] === undefined) {
+    // Check if field is present and not null/undefined
+    if (!obj.hasOwnProperty(field) || obj[field] === null || obj[field] === undefined || obj[field] === '') {
       throw new ApiError(`Missing required field: ${field}`, 400, { field });
+    }
+    
+    // Additional check for numeric values
+    if (['batteryKwh', 'realRange', 'maxChargeKw'].includes(field)) {
+        if (isNaN(parseFloat(obj[field])) || parseFloat(obj[field]) <= 0) {
+            throw new ApiError(`Invalid value for ${field}. Must be a positive number.`, 400);
+        }
     }
   }
 }

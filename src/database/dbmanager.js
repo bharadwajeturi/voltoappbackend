@@ -1,132 +1,172 @@
 const { Pool } = require('pg');
 const config = require('../config/configuration');
-const geohash = require('ngeohash');
 
 class DatabaseManager {
   constructor() {
-    this.pool = new Pool({
-      user: config.db.user,
-      password: config.db.password,
-      host: config.db.host,
-      port: config.db.port,
-      database: config.db.database,
-    });
+    this.pool = new Pool(config.db);
   }
 
-  // Find Nearby (Reads from Normalized DB)
-  async findNearbyStations(lat, lng, radiusMeters = 5000, verifiedOnly = false) {
+  // 🟢 CORE: Data Normalization & Brand Logic
+  applyBrandHeuristic(station) {
+      const BRANDS = ['Tata Power', 'Zeon', 'Statiq', 'Shell', 'Jio-bp', 'Hyundai', 'Mahindra', 'ChargeZone', 'Glida', 'LionCharge', 'BPCL', 'HPCL', 'Ather'];
+      
+      // 1. FIX: Handle CSV Double-Escaped JSON (e.g., "[""CCS2""]")
+      let connectors = station.connectorTypes || station.connectortypes; 
+      
+      if (typeof connectors === 'string') {
+          try {
+              // Step A: Fix CSV double quotes ("" -> ")
+              let cleanStr = connectors.replace(/""/g, '"');
+              
+              // Step B: Remove surrounding quote artifacts if present
+              // Sometimes CSV import leaves a wrapping quote like '"["CCS2"]"'
+              if (cleanStr.startsWith('"') && cleanStr.endsWith('"')) {
+                  cleanStr = cleanStr.slice(1, -1);
+              }
+
+              // Step C: Try parsing clean JSON
+              const parsed = JSON.parse(cleanStr);
+              connectors = Array.isArray(parsed) ? parsed : [parsed];
+
+          } catch (e) {
+              // Step D: Fallback - Regex extraction if JSON breaks
+              // Extracts words like "CCS2", "Type 2" ignoring brackets/quotes
+              const matches = connectors.match(/[a-zA-Z0-9\s-]+/g);
+              connectors = matches ? matches.filter(w => w.trim().length > 1) : [];
+          }
+      }
+      
+      // Normalize to Array (ensure no nulls)
+      station.connectorTypes = Array.isArray(connectors) && connectors.length > 0 
+          ? connectors 
+          : [];
+
+      // 2. Identify Brand
+      const isBrand = BRANDS.some(b => 
+        (station.operator && station.operator.toLowerCase().includes(b.toLowerCase())) || 
+        (station.name && station.name.toLowerCase().includes(b.toLowerCase()))
+      );
+
+      // 3. Power Logic: ONLY update if missing (0 or null)
+      let power = parseFloat(station.powerkw);
+      if (isNaN(power)) power = 0;
+
+      if (power <= 0) {
+          if (isBrand) {
+              station.powerkw = 30; // Brand Rescue: Assume decent speed
+              station.badge = 'SILVER'; 
+              station.trustscore = 80;
+              // 🟢 STRICT RULE: We do NOT add dummy connectors here anymore.
+          } else {
+              station.powerkw = 7.4; // Generic Fallback
+              station.badge = 'BRONZE';
+              station.trustscore = 60;
+          }
+      } else {
+          // Real data exists -> Keep it!
+          station.powerkw = power; 
+          station.badge = power >= 50 ? 'PLATINUM' : 'GOLD';
+      }
+
+      // 4. Connector Fallback: If empty, mark as "Unknown" (No Dummy Data)
+      if (station.connectorTypes.length === 0) {
+          station.connectorTypes = ['Unknown'];
+      }
+
+      return station;
+  }
+
+  // Find Nearby (NearMe Screen)
+  async findNearbyStations(lat, lng, radiusMeters = 5000) {
     try {
+      const validKeywords = [
+        'charging', 'charger', 'ev', 'electric', 'power', 'station', 'point', 'supply', 'battery', 
+        'tesla', 'supercharger', 'ather', 'tata', 'zeon', 'statiq', 'volttic', 'kazam', 'bolt',
+        'chargezone', 'glida', 'relux', 'lioncharge', 'jio-bp', 'shell', 'bpcl', 'hpcl'
+      ];
+
+      const keywordFilter = validKeywords
+        .map(w => `LOWER(s.name) LIKE '%${w}%' OR LOWER(s.operator) LIKE '%${w}%'`)
+        .join(' OR ');
+
       const query = `
         SELECT 
-          s.id, s.geohash, s.name, s.lat, s.lng, s.address, s.operator, s.powerkw, s.connectortypes, 
-          s.trustscore, s.sources, s.verified, s.lastupdatedat,
+          s.id, s.name, s.lat, s.lng, s.operator, s.powerkw, 
+          s.connectortypes as "connectorTypes", 
+          s.trustscore, s.sources, s.address,
           array_remove(array_agg(DISTINCT sa.amenity_type), NULL) as amenities
         FROM stationsmaster s
         LEFT JOIN station_amenities sa ON s.id = sa.station_id
-        WHERE ST_DWithin(
-          s.geog, 
-          ST_Point($1, $2)::geography, 
-          $3
-        ) 
-        ${verifiedOnly ? 'AND s.verified = true' : ''}
+        WHERE ST_DWithin(s.geog, ST_Point($1, $2)::geography, $3) 
+        AND (
+            s.trustscore > 30 
+            OR array_length(s.connectortypes, 1) > 0 
+            OR (${keywordFilter})
+        )
         GROUP BY s.id
-        ORDER BY 
-          ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC, 
-          s.trustscore DESC 
+        ORDER BY ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC
         LIMIT 100
       `;
-      
       const result = await this.pool.query(query, [lng, lat, radiusMeters]);
-      return result.rows;
+      return result.rows.map(s => this.applyBrandHeuristic(s));
     } catch (error) {
       console.error('Database Error:', error.message);
-      throw error;
+      return [];
     }
   }
 
-  // 🟢 Helper for Tile Status (Frontend Monitoring)
-  async getTileStatus(lat, lng, precision = 5) {
-      const tileId = geohash.encode(lat, lng, precision);
-      const res = await this.pool.query(
-          `SELECT * FROM tile_cache WHERE tile_id = $1`, 
-          [tileId]
-      );
-      return res.rows[0] || { status: 'unknown' };
-  }
+  // 🟢 CORE: Adaptive Search (Route Planner)
+  async adaptiveSearch(lat, lng, excludeIds = [], strategy = 'FAST') {
+      const validKeywords = [
+        'charging', 'charger', 'ev', 'electric', 'power', 'station', 'point', 'supply', 'battery', 
+        'tesla', 'supercharger', 'ather', 'tata', 'zeon', 'statiq', 'volttic', 'kazam', 'bolt',
+        'chargezone', 'glida', 'relux', 'lioncharge', 'jio-bp', 'shell', 'bpcl', 'hpcl'
+      ];
 
- 
+      const keywordFilter = validKeywords
+        .map(w => `LOWER(s.name) LIKE '%${w}%' OR LOWER(s.operator) LIKE '%${w}%'`)
+        .join(' OR ');
 
-// Add this inside the DatabaseManager class in src/database/dbmanager.js
-
-  // 🟢 NEW: Logic for Battery Router to find the "Best" stop
-  // src/database/dbmanager.js
-
-  // 🟢 UPDATED: Accepts 'excludeIds' array to prevent loops
-  // src/database/dbmanager.js
-
- async adaptiveSearch(lat, lng, excludeIds = [], strategy = 'QUALITY') {
-    try {
       const excludeClause = excludeIds.length > 0 
         ? `AND s.id NOT IN (${excludeIds.map(id => `'${id}'`).join(',')})` 
         : '';
 
+      // 🟢 FIX: Added missing 'connectortypes' and 'address' to SELECT list
       const baseQuery = `
         SELECT 
-            s.id, s.name, s.lat, s.lng, s.operator, s.powerkw, s.trustscore, s.address,
+            s.id, s.name, s.lat, s.lng, s.operator, 
+            s.powerkw, s.trustscore, s.address,
+            s.connectortypes as "connectorTypes",
             array_remove(array_agg(DISTINCT sa.amenity_type), NULL) as amenities
         FROM stationsmaster s
         LEFT JOIN station_amenities sa ON s.id = sa.station_id
       `;
 
-      let orderBy = '';
-      let whereClause = '';
-
-      if (strategy === 'DISTANCE') {
-          // Panic Mode: Find closest working charger (Power > 0)
-          whereClause = `AND s.powerkw > 0`; 
-          orderBy = `ORDER BY ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC`;
-      } else {
-          // Cruise Mode: Prioritize High Power & Trust
-          whereClause = `AND s.powerkw >= 25`;
-          orderBy = `ORDER BY s.powerkw DESC, s.trustscore DESC, ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC`;
-      }
-
-      // Query 1: Try strict filter
       let query = `
         ${baseQuery}
-        WHERE ST_DWithin(s.geog, ST_Point($1, $2)::geography, 30000)
-        ${whereClause}
+        WHERE ST_DWithin(s.geog, ST_Point($1, $2)::geography, 50000)
         ${excludeClause}
+        AND (
+            s.trustscore > 30                   
+            OR array_length(s.connectortypes, 1) > 0  
+            OR (${keywordFilter})               
+        )
         GROUP BY s.id
-        ${orderBy}
-        LIMIT 5
+        ORDER BY ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC
+        LIMIT 20
       `;
-      let result = await this.pool.query(query, [lng, lat]);
+      
+      const startT = Date.now();
+      const result = await this.pool.query(query, [lng, lat]);
+      const duration = Date.now() - startT;
 
-      // Query 2: Fallback (Widen search, loosen power reqs)
-      if (result.rows.length === 0) {
-         query = `
-            ${baseQuery}
-            WHERE ST_DWithin(s.geog, ST_Point($1, $2)::geography, 50000)
-            AND (s.powerkw > 0 OR s.trustscore >= 70)
-            ${excludeClause}
-            GROUP BY s.id
-            ORDER BY ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC
-            LIMIT 5
-         `;
-         result = await this.pool.query(query, [lng, lat]);
-      }
-
-      return { stations: result.rows };
-    } catch (error) {
-      console.error('[DB] Adaptive Search Failed:', error.message);
-      return { stations: [] };
-    }
+      // Apply Heuristics in Memory
+      const stations = result.rows.map(s => this.applyBrandHeuristic(s));
+      
+      return { stations };
   }
-   async close() {
-    await this.pool.end();
-  }
+  
+  async close() { await this.pool.end(); }
 }
 
-const db = new DatabaseManager();
-module.exports = db;
+module.exports = new DatabaseManager();
