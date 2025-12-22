@@ -1,9 +1,10 @@
 /**
- * VOLTPATH AGGREGATOR (v6.1 - 7 Day Cache & Corridor Optimization)
+ * VOLTPATH AGGREGATOR (v6.3 - Final Stable)
  * Strategy: 
  * - Check DB first (Freshness = 7 Days).
- * - Scan Corridor every 50km (Optimal for long routes).
- * - Saves $$$ on Google/OCM calls.
+ * - Scan Corridor every 50km.
+ * - Saves Context (Mall, Hotel) to DB.
+ * - Handles 'Unknown' overwrites smartly.
  */
 
 const { Pool } = require('pg'); 
@@ -34,32 +35,26 @@ const db = new Pool({
 const fetchSafe = (promise, ms) => Promise.race([promise, new Promise(r => setTimeout(() => r([]), ms))]).catch(() => []);
 
 // --- 🟢 SMART CACHE CHECK (7 Days) ---
-// Returns TRUE if we have good data for this sector
 async function isSectorFresh(lat, lng, client) {
     try {
-        // Rule: If > 5 stations exist and were updated in the last 7 DAYS
         const result = await client.query(`
             SELECT count(*) as count 
             FROM stationsmaster 
             WHERE ST_DWithin(geog, ST_MakePoint($1, $2)::geography, 50000)
             AND lastupdatedat > NOW() - INTERVAL '7 days'
-        `, [lng, lat]); // PostGIS uses [lng, lat]
+        `, [lng, lat]); 
 
         const count = parseInt(result.rows[0].count);
-        return count >= 5; // "Fresh" if we have data
+        return count >= 5; 
     } catch (e) {
         console.warn(`[Cache Check Failed] ${e.message}`);
-        return false; // Fail safe: Fetch data
+        return false; 
     }
 }
 
 async function processRouteTiles(points) {
     if (!points || points.length === 0) return;
 
-    // 🟢 ROUTE SEGMENTATION LOGIC
-    // For >400km routes, 50km intervals with 50km radius creates a 
-    // robust "Corridor Search" that covers 100% of the highway + detours.
-    // Reducing this interval would spike costs without adding coverage.
     const targets = sampleRoutePoints(points, 50);
     console.log(`[Aggregator] 🎯 Analyzing ${targets.length} sectors (7-Day Cache Rule)...`);
 
@@ -70,23 +65,15 @@ async function processRouteTiles(points) {
         let cacheCount = 0;
 
         for (const point of targets) {
-            // 🟢 STEP 1: CHECK CACHE (7 Days)
             const fresh = await isSectorFresh(point.latitude, point.longitude, client);
-            
             if (fresh) {
-                // console.log(`[Aggregator] ⏩ Sector ${point.latitude.toFixed(2)},${point.longitude.toFixed(2)} is fresh. Skipping API.`);
                 cacheCount++;
                 continue; 
             }
-
-            // 🟢 STEP 2: FETCH ONLY IF STALE
-            // console.log(`[Aggregator] 🔄 Sector stale. Fetching live data...`);
             fetchCount++;
             await ingestSector(point);
         }
-        
         console.log(`[Aggregator] ✅ Scan Complete. Fetched: ${fetchCount} | Cached: ${cacheCount}`);
-
     } catch (e) {
         console.error("[Aggregator] Critical Error:", e.message);
     } finally {
@@ -99,7 +86,6 @@ async function ingestSector(point) {
     const SEARCH_RADIUS = 50000; 
 
     try {
-        // 1. Fetch Stations (Parallel)
         const [googleData, ocmData, govData, rapidData] = await Promise.all([
             fetchSafe(googleFetcher.fetchStations(lat, lng, SEARCH_RADIUS), 8000),
             fetchSafe(ocmFetcher.fetchStations(lat, lng, SEARCH_RADIUS), 8000),
@@ -111,8 +97,8 @@ async function ingestSector(point) {
 
         if (mergedStations.length > 0) {
             await saveStations(mergedStations);
-            // Link Amenities after fresh fetch
             await linkRestaurantsToStations(lat, lng, db); 
+            console.log(`[Sector] 🌐 ${lat.toFixed(2)},${lng.toFixed(2)} - Saved ${mergedStations.length} stations.`);
         }
 
     } catch (e) {
@@ -131,6 +117,8 @@ async function saveStations(stations) {
 
         for (const s of stations) {
              const safePower = parseFloat(s.powerkw) || 0;
+             // 🟢 FIX: Ensure 'Unknown' isn't hardcoded if we have real data
+             const connectors = (s.connectorTypes && s.connectorTypes.length > 0) ? s.connectorTypes : ['Unknown'];
              const toPgArray = (arr) => arr && arr.length > 0 ? `{${arr.map(i => `"${(i || '').toString().replace(/"/g, '\\"')}"`).join(',')}}` : '{}';
              
              const sLat = parseFloat(s.lat);
@@ -138,27 +126,43 @@ async function saveStations(stations) {
              if (isNaN(sLat) || isNaN(sLng)) continue; 
 
              const sGeohash = geohash.encode(sLat, sLng, 7);
-             const sAddress = s.address || '';
+             
+             // 🟢 FIX: Robust Address Fallback
+             let sAddress = s.address;
+             if (!sAddress || sAddress === 'Address Unavailable' || sAddress.trim() === '') {
+                 sAddress = `${s.name}, ${sLat.toFixed(4)}, ${sLng.toFixed(4)}`;
+             }
+
+             // 🟢 DEBUG LOG: Verify Context
+             const contextTags = (s.amenities || []).filter(t => ['shopping_mall', 'hotel', 'lodging', 'restaurant', 'parking'].includes(t));
+             if (contextTags.length > 0 && Math.random() > 0.9) {
+                 console.log(`   📍 Context Found: ${s.name} is at [${contextTags.join(', ')}]`);
+             }
 
              const result = await client.query(`
                 INSERT INTO stationsmaster 
-                (id, name, lat, lng, geog, geohash, address, operator, powerkw, connectortypes, trustscore, sources, lastupdatedat)
-                VALUES ($1, $2, $3::numeric, $4::numeric, ST_SetSRID(ST_MakePoint($4::numeric, $3::numeric), 4326), $5, $6, $7, $8, $9, $10, $11, NOW())
+                (id, name, lat, lng, geog, geohash, address, operator, powerkw, connectortypes, trustscore, sources, amenities, lastupdatedat)
+                VALUES ($1, $2, $3::numeric, $4::numeric, ST_SetSRID(ST_MakePoint($4::numeric, $3::numeric), 4326), $5, $6, $7, $8, $9, $10, $11, $12, NOW())
                 ON CONFLICT (id) DO UPDATE SET
                     trustscore = GREATEST(stationsmaster.trustscore, EXCLUDED.trustscore),
                     powerkw = GREATEST(stationsmaster.powerkw, EXCLUDED.powerkw),
                     connectortypes = CASE 
-                        WHEN array_length(stationsmaster.connectortypes, 1) IS NULL THEN EXCLUDED.connectortypes
+                        WHEN array_length(stationsmaster.connectortypes, 1) IS NULL OR stationsmaster.connectortypes = '{Unknown}' 
+                        THEN EXCLUDED.connectortypes
                         ELSE stationsmaster.connectortypes 
                     END,
-                    address = COALESCE(NULLIF(EXCLUDED.address, ''), stationsmaster.address),
+                    amenities = CASE
+                        WHEN array_length(stationsmaster.amenities, 1) IS NULL THEN EXCLUDED.amenities
+                        ELSE stationsmaster.amenities
+                    END,
+                    address = COALESCE(NULLIF(EXCLUDED.address, ''), NULLIF(EXCLUDED.address, 'Address Unavailable'), stationsmaster.address),
                     operator = COALESCE(NULLIF(EXCLUDED.operator, 'Google Places'), stationsmaster.operator),
                     geohash = EXCLUDED.geohash,
                     lastupdatedat = NOW()
                 RETURNING id;
              `, [
                  s.id, s.name, sLat, sLng, sGeohash, sAddress, s.operator, safePower, 
-                 toPgArray(s.connectorTypes), s.trustscore, toPgArray(s.sources)
+                 toPgArray(connectors), s.trustscore, toPgArray(s.sources), toPgArray(s.amenities)
              ]);
              
              if (result.rowCount > 0) savedCount++;

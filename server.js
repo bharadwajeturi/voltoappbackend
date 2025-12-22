@@ -1,16 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-
 const cron = require('node-cron');
 const { exec } = require('child_process');
 
-// 1. IMPORT DB
-// Importing from 'data_aggregator' ensures we use the exact same DB instance 
-// that the fetching logic uses.
+// 1. IMPORT DB & ROUTES
 const { db } = require('./data_aggregator'); 
-
 const stationRoutes = require('./src/routes/stationRoutes');
+const vehicleRoutes = require('./src/routes/vehicleRoutes'); // 🟢 Imported
 const rateLimiter = require('./src/utils/rateLimiter');
 
 dotenv.config();
@@ -32,20 +29,17 @@ app.use('/api', async (req, res, next) => {
         next();
     } catch (error) {
         console.error("Rate Limiter Error:", error);
-        next(); // Proceed even if limiter fails to avoid blocking legitimate traffic
+        next(); 
     }
 });
 
 const startServer = async () => {
     try {
         // 3. DATABASE CONNECTION CHECK
-        // We check if 'db' is a Client (needs .connect()) or a Pool (connects automatically on query)
-        // This prevents the "Client was closed" or "Client not connected" errors.
         if (db.connect && typeof db.connect === 'function') {
             await db.connect();
             console.log('✅ Connected to PostgreSQL Database (Single Client Mode)');
         } else {
-            // If it's a Pool, running a simple query verifies the connection
             await db.query('SELECT NOW()');
             console.log('✅ Connected to PostgreSQL Database (Pool Verified)');
         }
@@ -57,8 +51,13 @@ const startServer = async () => {
             });
         });
 
-        // 5. MOUNT ROUTES
-        // This connects your 'routeController.js' logic to the server
+        // 5. MOUNT ROUTES (Grouped together for clarity)
+        
+        // 🟢 Vehicle Routes (Specific route first)
+        app.use('/api/vehicles', vehicleRoutes);
+        console.log('✅ Vehicle Routes mounted at /api/vehicles');
+
+        // Station Routes (General route)
         app.use('/api', stationRoutes);
         console.log('✅ Station Routes mounted at /api');
 
@@ -70,7 +69,8 @@ const startServer = async () => {
         // 6. START LISTENER
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`\n🚀 SERVER RUNNING on http://0.0.0.0:${PORT}`);
-            console.log(`   - Network Access: http://192.168.0.136:${PORT}`); // Update IP if dynamic
+            // Note: The IP below is for your reference; it doesn't affect the code.
+            console.log(`   - Network Access: http://192.168.0.136:${PORT}`); 
         });
 
     } catch (err) {
@@ -79,7 +79,7 @@ const startServer = async () => {
     }
 };
 
-// 🟢 AUTOMATIC UPDATE: Run every Sunday at 3:00 AM
+// 7. AUTOMATIC UPDATE: Run every Sunday at 3:00 AM
 cron.schedule('0 3 * * 0', () => {
   console.log('[Cron] Triggering weekly Gov Data update...');
   exec('node scripts/refreshGovData.js', (error, stdout, stderr) => {
@@ -88,4 +88,5 @@ cron.schedule('0 3 * * 0', () => {
   });
 });
 
+// Start the engine
 startServer();

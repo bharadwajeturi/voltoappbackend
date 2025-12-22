@@ -1,6 +1,6 @@
 /**
  * Data Merge Engine
- * STATUS: FIXED (Allows Google/Gov with 0 Power)
+ * STATUS: FIXED (Smart Merging of Address, Power, & Connectors + Detailed Logs)
  */
 
 const geohash = require('ngeohash');
@@ -9,6 +9,7 @@ const { isSameName } = require('../utils/fuzzyMatch');
 function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = [], rapidData = []) {
   
   // 🟢 FIX: Allow Google & Gov stations even if power is 0/Unknown
+  // We need them to exist so we can merge OCM data into them later
   const isValidStation = (s) => {
       if (s.source === 'google' || s.source === 'gov') return true;
       
@@ -25,6 +26,7 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
 
   console.log(`\n🔀 MERGE: Inputs: Google(${validGoogle.length}), OCM(${validOCM.length}), Gov(${validGov.length}), Rapid(${validRapid.length})`);
 
+  // Priority helps sort the bucket, but our merge logic below handles field-level updates regardless of order.
   const sourcePriority = { 
       gov: 0, 
       ocm: 1, 
@@ -53,6 +55,8 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
 
   for (const [hash, bucket] of geohashBuckets.entries()) {
     if (bucket.length === 0) continue;
+    
+    // Sort by priority so high-quality sources are processed first in the loop
     bucket.sort((a, b) => sourcePriority[a.source] - sourcePriority[b.source]);
 
     const bucketGoldenRecords = [];
@@ -65,21 +69,62 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
             
             if (isMatch) {
                 merged = true;
-                record.trustscore = Math.max(record.trustscore, candidate.trustscore || 50);
                 
+                // 🟢 LOG: Merge Detected
+                console.log(`   🤝 MERGE MATCH: "${candidate.name}" (${candidate.source}) matched with "${record.name}" (${record.sourceCount} sources)`);
+
+                // 🟢 1. Update Trust Score
+                record.trustscore = Math.max(record.trustscore, candidate.trustscore || 50);
                 if (!record.sources.includes(candidate.source)) {
                     record.sources.push(candidate.source);
                     record.sourceCount = record.sources.length;
                     record.trustscore = Math.min(100, record.trustscore + 5); 
                 }
 
-                if (parseFloat(candidate.powerkw) > parseFloat(record.powerkw)) {
-                    record.powerkw = parseFloat(candidate.powerkw);
+                // 🟢 2. Power Update (Max Wins)
+                // If candidate has real power and record has 0 (from Google), take candidate's
+                const oldPower = parseFloat(record.powerkw);
+                const newPower = parseFloat(candidate.powerkw);
+                
+                if (newPower > oldPower) {
+                    console.log(`      ⚡ Power Upgrade: ${oldPower}kW -> ${newPower}kW (Thanks to ${candidate.source})`);
+                    record.powerkw = newPower;
                 }
                 
+                // 🟢 3. Operator Update (Fill if missing)
                 if (!record.operator && candidate.operator) {
                     record.operator = candidate.operator;
                 }
+
+                // 🟢 4. Address Update (Longest String Wins)
+                // Google often gives short addresses. OCM/Gov often give full ones.
+                if (!record.address || (candidate.address && candidate.address.length > record.address.length)) {
+                    if (candidate.address) { // Only update if candidate actually has an address
+                        console.log(`      📍 Address Improved: "${record.address}" -> "${candidate.address}" (Thanks to ${candidate.source})`);
+                        record.address = candidate.address;
+                    }
+                }
+
+                // 🟢 5. Connectors Merge (Union + Normalize)
+                const combinedConnectors = [...(record.connectorTypes || []), ...(candidate.connectorTypes || [])];
+                const uniqueConnectors = [...new Set(combinedConnectors.map(c => {
+                    if (!c) return null;
+                    const s = String(c).toUpperCase();
+                    if (s.includes('CCS')) return 'CCS2'; // Standardize
+                    if (s.includes('TYPE 2') || s.includes('TYPE2')) return 'Type 2';
+                    if (s.includes('CHADEMO')) return 'CHAdeMO';
+                    return c; // Keep original if specific
+                }).filter(c => c))];
+
+                if (uniqueConnectors.length > (record.connectorTypes || []).length) {
+                     console.log(`      🔌 Connectors Enriched: ${JSON.stringify(record.connectorTypes)} -> ${JSON.stringify(uniqueConnectors)}`);
+                     record.connectorTypes = uniqueConnectors;
+                }
+
+                // 🟢 6. Amenities Merge (Union)
+                const combinedAmenities = [...(record.amenities || []), ...(candidate.amenities || [])];
+                record.amenities = [...new Set(combinedAmenities)];
+
                 break; 
             }
         }
@@ -90,6 +135,9 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
                 const cleanName = (candidate.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
                 stableId = `${candidate.source}_${hash}_${cleanName}`;
             }
+
+            // 🟢 LOG: New Record Created
+            // console.log(`   🆕 New Record: "${candidate.name}" from ${candidate.source}`);
 
             bucketGoldenRecords.push({
                 id: stableId,
@@ -115,9 +163,15 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
 
   console.log(`✅ Merge Complete. ${goldenRecords.length} unique stations ready.`);
   console.log(`\n🔀 MERGE REPORT:`);
-console.log(`   - Inputs: Google(${validGoogle.length}), OCM(${validOCM.length}), Gov(${validGov.length}), Rapid(${validRapid.length})`);
-console.log(`   - 🏆 Golden Records Created: ${goldenRecords.length}`);
-console.log(`   - 👻 Ghosts Rejected (0kW): ${googleData.length + ocmData.length - validGoogle.length - validOCM.length}`);
+  console.log(`   - Inputs: Google(${validGoogle.length}), OCM(${validOCM.length}), Gov(${validGov.length}), Rapid(${validRapid.length})`);
+  console.log(`   - 🏆 Golden Records Created: ${goldenRecords.length}`);
+  
+  // LOG SAMPLE OF A GOOD RECORD
+  const bestRecord = goldenRecords.find(g => g.powerkw > 0 && g.connectorTypes.length > 0);
+  if(bestRecord) {
+      console.log(`   - ✨ Sample Best Record: ${bestRecord.name} (${bestRecord.powerkw}kW, ${bestRecord.connectorTypes})`);
+  }
+
   return goldenRecords;
 }
 

@@ -13,7 +13,8 @@
     "geohash": "^0.0.1",
     "ngeohash": "^0.6.3",
     "node-cron": "^4.2.1",
-    "pg": "^8.10.0"
+    "pg": "^8.10.0",
+    "react-native-google-places-autocomplete": "^2.6.1"
   },
   "devDependencies": {
     "eslint": "^8.40.0",

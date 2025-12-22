@@ -115,55 +115,77 @@ class DatabaseManager {
     }
   }
 
+  /**
+   * 🟢 ADAPTIVE SEARCH (v7.0)
+   * Finds the best stations near a point, filtering by strategy & keywords.
+   * Handles: Radius, Power Requirements, Keyword Filtering, and Badging.
+   */
+
   // 🟢 CORE: Adaptive Search (Route Planner)
-  async adaptiveSearch(lat, lng, excludeIds = [], strategy = 'FAST') {
-      const validKeywords = [
-        'charging', 'charger', 'ev', 'electric', 'power', 'station', 'point', 'supply', 'battery', 
-        'tesla', 'supercharger', 'ather', 'tata', 'zeon', 'statiq', 'volttic', 'kazam', 'bolt',
-        'chargezone', 'glida', 'relux', 'lioncharge', 'jio-bp', 'shell', 'bpcl', 'hpcl'
-      ];
+  /**
+   * 🟢 ADAPTIVE SEARCH (v9.5 - Dynamic Radius Support)
+   * Now accepts 'radiusOverride' to support Deep Scans.
+   */
+  async adaptiveSearch(lat, lng, excludeIds = [], strategy = 'FAST', radiusOverride = null) {
+      try {
+          // 🟢 FIX: Allow Router to override radius (e.g., 100km for Deep Scan)
+          let radius = radiusOverride || (strategy === 'FAST' ? 50000 : 30000); 
+          const minPower = strategy === 'FAST' ? 15 : 0;      
 
-      const keywordFilter = validKeywords
-        .map(w => `LOWER(s.name) LIKE '%${w}%' OR LOWER(s.operator) LIKE '%${w}%'`)
-        .join(' OR ');
+          const validKeywords = [
+            'charging', 'charger', 'ev', 'electric', 'power', 'station', 'point', 'supply', 'battery', 
+            'tesla', 'supercharger', 'ather', 'tata', 'zeon', 'statiq', 'volttic', 'kazam', 'bolt',
+            'chargezone', 'glida', 'relux', 'lioncharge', 'jio-bp', 'shell', 'bpcl', 'hpcl'
+          ];
 
-      const excludeClause = excludeIds.length > 0 
-        ? `AND s.id NOT IN (${excludeIds.map(id => `'${id}'`).join(',')})` 
-        : '';
+          const keywordFilter = validKeywords
+            .map(w => `LOWER(s.name) LIKE '%${w}%' OR LOWER(s.operator) LIKE '%${w}%'`)
+            .join(' OR ');
 
-      // 🟢 FIX: Added missing 'connectortypes' and 'address' to SELECT list
-      const baseQuery = `
-        SELECT 
-            s.id, s.name, s.lat, s.lng, s.operator, 
-            s.powerkw, s.trustscore, s.address,
-            s.connectortypes as "connectorTypes",
-            array_remove(array_agg(DISTINCT sa.amenity_type), NULL) as amenities
-        FROM stationsmaster s
-        LEFT JOIN station_amenities sa ON s.id = sa.station_id
-      `;
+          const excludeClause = excludeIds.length > 0 
+            ? `AND s.id NOT IN (${excludeIds.map(id => `'${id}'`).join(',')})` 
+            : '';
 
-      let query = `
-        ${baseQuery}
-        WHERE ST_DWithin(s.geog, ST_Point($1, $2)::geography, 50000)
-        ${excludeClause}
-        AND (
-            s.trustscore > 30                   
-            OR array_length(s.connectortypes, 1) > 0  
-            OR (${keywordFilter})               
-        )
-        GROUP BY s.id
-        ORDER BY ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC
-        LIMIT 20
-      `;
-      
-      const startT = Date.now();
-      const result = await this.pool.query(query, [lng, lat]);
-      const duration = Date.now() - startT;
+          const query = `
+            SELECT 
+                s.id, s.name, s.lat, s.lng, s.operator, 
+                s.powerkw, s.trustscore, s.address,
+                s.connectortypes as "connectorTypes",
+                array_remove(array_agg(DISTINCT sa.amenity_type), NULL) as amenities
+            FROM stationsmaster s
+            LEFT JOIN station_amenities sa ON s.id = sa.station_id
+            WHERE ST_DWithin(s.geog, ST_Point($1, $2)::geography, $3) 
+            AND s.powerkw >= $4 
+            ${excludeClause}
+            AND (
+                s.trustscore > 30                   
+                OR array_length(s.connectortypes, 1) > 0  
+                OR (${keywordFilter})               
+            )
+            GROUP BY s.id
+            ORDER BY 
+                ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC -- Closest first for routing
+            LIMIT 20
+          `;
+          
+          const result = await this.pool.query(query, [lng, lat, radius, minPower]);
 
-      // Apply Heuristics in Memory
-      const stations = result.rows.map(s => this.applyBrandHeuristic(s));
-      
-      return { stations };
+          const stations = result.rows.map(s => {
+              const cleanStation = this.applyBrandHeuristic ? this.applyBrandHeuristic(s) : s;
+              let badge = 'BRONZE';
+              const p = parseFloat(cleanStation.powerkw || 0);
+              const t = parseFloat(cleanStation.trustscore || 0);
+              if (p >= 50 && t > 80) badge = 'GOLD';
+              else if (p >= 25 && t > 50) badge = 'SILVER';
+              return { ...cleanStation, badge };
+          });
+          
+          return { stations };
+
+      } catch (e) {
+          console.error("❌ [DB] Adaptive Search Failed:", e.message);
+          return { stations: [] };
+      }
   }
   
   async close() { await this.pool.end(); }

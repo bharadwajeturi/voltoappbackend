@@ -46,7 +46,7 @@ async function fetchStations(lat, lng, radiusMeters = 50000) {
                      'X-Goog-Api-Key': config.keys.google,
                      // 💰 FIELD MASKING: The Money Saver
                      // Only fetch what we need to identify the station.
-                     'X-Goog-FieldMask': 'places.id,places.location,places.displayName,places.types'
+                     'X-Goog-FieldMask': 'places.id,places.location,places.displayName,places.types,places.formattedAddress'
                  },
                  timeout: 8000
              }
@@ -72,8 +72,8 @@ async function fetchStations(lat, lng, radiusMeters = 50000) {
         name: name,
         lat: place.location?.latitude,
         lng: place.location?.longitude,
-        address: '', // We don't pay for address in discovery phase
-        operator: operator,
+        address: place.formatted_address || place.vicinity || "Address Unavailable",    
+         operator: operator,
         
         // 🟢 Power is 0 for now (Will be fixed by Brand Heuristic in DB)
         powerkw: 0, 

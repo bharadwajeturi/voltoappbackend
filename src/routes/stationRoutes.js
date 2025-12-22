@@ -1,6 +1,6 @@
 /**
  * VOLTPATH BACKEND - ROUTE ORCHESTRATOR
- * STATUS: FIXED (Uses Advanced Battery Router + Dual Strategy)
+ * STATUS: FIXED (Lazy Loading + Start/End Safety + Full Logging)
  */
 
 const express = require('express');
@@ -10,16 +10,76 @@ const polyline = require('@mapbox/polyline');
 const db = require('../database/dbmanager'); 
 const aggregator = require('../../data_aggregator');
 const { fetchAmenitiesForPoint } = require('../fetchers/googleAmenityFetcher');
-// 🟢 IMPORT THE ADVANCED ROUTER
+const { filterAmenitiesByETA } = require('../utils/timeBasedAmenities'); 
 const { planRoute } = require('../services/batteryRouter'); 
 const { validateRequired } = require('../utils/errorHandler');
 const { fetchStationSpecs } = require('../fetchers/googleStationEnricher');
 
+// 🟢 NEW: Dedicated Endpoint for Lazy Loading Amenities
+// Call this when user clicks a station marker
+// 🟢 NEW: Dedicated Endpoint for Lazy Loading Amenities
+router.get('/station/amenities', async (req, res) => {
+    try {
+        const { stationId, lat, lng } = req.query;
+        
+        // 🟢 STRICT GUARD: Stop User Waypoints from hitting DB
+        if (!stationId || stationId.startsWith('wp_') || stationId.startsWith('trip_')) {
+            return res.json([]); // Return empty list immediately, no error
+        }
+
+        if (!lat || !lng) return res.status(400).json({ error: "Missing params" });
+
+        const sLat = parseFloat(lat);
+        const sLng = parseFloat(lng);
+        
+        let amenities = [];
+
+        // 1. Check DB First
+        const dbResult = await db.pool.query(`
+            SELECT name, amenity_type as type, distance_m 
+            FROM station_amenities 
+            WHERE station_id = $1
+        `, [stationId]);
+        amenities = dbResult.rows;
+
+        // 2. If Empty, Fetch Live
+        if (amenities.length === 0) {
+            console.log(`⚡ [Lazy Load] Fetching amenities for ${stationId}...`);
+            try {
+                const fetched = await fetchAmenitiesForPoint(sLat, sLng);
+                if (fetched.length > 0) {
+                    await savePremiumAmenities(stationId, fetched, 'lazy_load');
+                }
+                amenities = fetched;
+            } catch (e) {
+                console.error("Lazy fetch failed:", e.message);
+            }
+        }
+
+        // 3. Apply Time Filter
+        const eta = new Date(); 
+        const sorted = filterAmenitiesByETA(amenities, eta);
+
+        res.json(sorted);
+
+    } catch (e) {
+        console.error("Amenity API Error:", e.message);
+        res.status(500).json([]);
+    }
+});
 
 // Helper to save premium amenities to DB
-async function savePremiumAmenities(stationId, amenities) {
+async function savePremiumAmenities(stationId, amenities, source) {
     if (!amenities || amenities.length === 0) return;
+
+    // 🟢 SAFETY: Never save amenities for waypoints
+    if (stationId.toString().startsWith('wp_') || stationId.toString().startsWith('trip_')) {
+        return; 
+    }
     
+    // 🟢 FIX 1: Robust Guard against Temp/User Nodes
+    if (source === 'user' || stationId === 'trip_start' || stationId === 'trip_end' || (stationId && stationId.toString().startsWith('trip_'))) return;
+
     const { db: pool } = require('../../data_aggregator');
     
     try {
@@ -30,28 +90,60 @@ async function savePremiumAmenities(stationId, amenities) {
                 ON CONFLICT DO NOTHING
             `, [stationId, a.name, a.type || 'premium']);
         }
+        console.log(`💾 [DB] Saved ${amenities.length} amenities for ${stationId}`);
     } catch (e) {
-        console.error("Amenity save failed:", e.message);
+        console.error("Amenity save failed:", e.message); 
     }
 }
 
-// 🟢 Helper to update Station Specs in DB
-async function updateStationSpecs(stationId, specs) {
+// 🟢 BRAND STANDARDS
+function applyBrandLogic(stationName, specs) {
+    const name = (stationName || "").toLowerCase();
+    
+    let newPower = specs.powerkw || 0;
+    let newConnectors = [...(specs.connectors || [])];
+
+    if (name.includes('tata') || name.includes('ez charge')) {
+        if (newPower === 0) newPower = 30; 
+        if (newConnectors.length === 0) newConnectors.push('CCS2');
+    }
+    else if (name.includes('zeon') || name.includes('statiq') || name.includes('bpcl') || name.includes('shell')) {
+        if (newPower === 0) newPower = 30;
+        if (newConnectors.length === 0) newConnectors.push('CCS2');
+    }
+    else if (name.includes('ather') || name.includes('ola') || name.includes('grid')) {
+        if (newPower === 0) newPower = 3.3; 
+        if (newConnectors.length === 0) newConnectors.push('Type 2'); 
+    }
+
+    return { powerkw: newPower, connectors: newConnectors };
+}
+
+// 🟢 Helper to update Station Specs
+async function updateStationSpecs(stationId, specs, stationName) {
     const { db: pool } = require('../../data_aggregator');
+    const enhancedSpecs = applyBrandLogic(stationName, specs);
+    const validConnectors = (enhancedSpecs.connectors || [])
+        .filter(c => c && c !== 'Unknown' && c.trim() !== '' && c !== '{Unknown}');
+
+    if (enhancedSpecs.powerkw <= 0 && validConnectors.length === 0) return;
+
     try {
-        const typeStr = `{${specs.connectors.map(c => `"${c}"`).join(',')}}`;
+        const typeStr = `{${validConnectors.map(c => `"${c}"`).join(',')}}`;
+        console.log(`✨ [Enricher] Updating ${stationName} -> ${enhancedSpecs.powerkw}kW`);
+
         await pool.query(`
             UPDATE stationsmaster 
             SET powerkw = GREATEST(powerkw, $1), 
-                connectortypes = $2::text[],
+                connectortypes = $2::text[], 
                 lastupdatedat = NOW()
             WHERE id = $3
-        `, [specs.powerkw, typeStr, stationId]);
-        console.log(`✨ [DB Fix] Updated specs for ${stationId}: ${specs.powerkw}kW`);
+        `, [enhancedSpecs.powerkw, typeStr, stationId]);
+        
     } catch (e) { console.error("Spec update failed:", e.message); }
 }
 
-// Autocomplete Proxy
+// ... [Autocomplete, Nearby, Places Details Routes] ...
 router.get('/places/autocomplete', async (req, res) => {
     try {
         const { query } = req.query;
@@ -60,35 +152,21 @@ router.get('/places/autocomplete', async (req, res) => {
         const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${apiKey}&types=geocode`;
         const response = await axios.get(url);
         res.json(response.data);
-    } catch (e) {
-        console.error("[Autocomplete] Error:", e.message);
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Near Me Endpoint
 router.get('/nearby', async (req, res) => {
     try {
         const { lat, lng, r } = req.query;
         if (!lat || !lng) return res.status(400).json({ error: "Missing lat/lng" });
-
         const radius = parseInt(r) * 1000 || 5000; 
-
-        // 1. Background Update
         const point = { latitude: parseFloat(lat), longitude: parseFloat(lng) };
         aggregator.processRouteTiles([point]).catch(err => console.error("Bg update failed", err.message));
-
-        // 2. Query DB immediately
         const stations = await db.findNearbyStations(point.latitude, point.longitude, radius);
         res.json(stations);
-
-    } catch (error) {
-        console.error('[Nearby] Error:', error.message);
-        res.status(500).json({ error: "Internal Server Error" });
-    }
+    } catch (error) { res.status(500).json({ error: "Internal Server Error" }); }
 });
 
-// Place Details Proxy
 router.get('/places/details', async (req, res) => {
     try {
         const { placeId } = req.query;
@@ -98,79 +176,78 @@ router.get('/places/details', async (req, res) => {
         const response = await axios.get(url);
         if (response.data.status !== 'OK') throw new Error(response.data.error_message);
         res.json(response.data.result.geometry.location);
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 🟢 THE CORE: Plan Route (Dual Strategy)
+// 🟢 THE CORE: Plan Route
 router.post('/plan-route', async (req, res) => {
     try {
-        // 🟢 1. GET EXACT INPUTS FROM FRONTEND
-        const { start, end, currentSOC, minBufferSOC, batteryKwh, realRange, maxChargeKw, strategy } = req.body;
+        const { 
+            start, end, waypoints = [], 
+            currentSOC, minBufferSOC, batteryKwh, realRange, maxChargeKw, 
+            strategy, isDestinationChargerAvailable = false 
+        } = req.body;
+
         validateRequired(req.body, ['start', 'end', 'batteryKwh', 'realRange', 'maxChargeKw']);
         
         console.log(`\n🚀 [API] New Trip Request: ${start.name} -> ${end.name}`);
-        console.log(`   Specs: ${batteryKwh}kWh | ${currentSOC}% SOC | Range: ${realRange}km`);
 
-        // 🟢 2. RECONSTRUCT CONFIG
         const carConfig = {
             capacity: parseFloat(batteryKwh),
             efficiency: parseFloat(batteryKwh) / parseFloat(realRange),
             maxChargeRate: parseFloat(maxChargeKw) || 30,
             plugType: 'CCS2'
         };
-
         const startSOCNum = parseFloat(currentSOC) || 100;
 
-        // 3. Polyline
-        const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}&mode=driving&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+        // 🟢 1. Google Directions with Waypoints
+        let waypointsParam = "";
+        if (waypoints && waypoints.length > 0) {
+            const pointsStr = waypoints.map(w => `${w.lat},${w.lng}`).join('|');
+            waypointsParam = `&waypoints=${pointsStr}`;
+        }
+
+        const directionsUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}${waypointsParam}&mode=driving&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+        
         const dirRes = await axios.get(directionsUrl);
-        if (!dirRes.data.routes[0]) throw new Error("No route found");
+        if (!dirRes.data.routes[0]) throw new Error("No route found on Google Maps");
         
         const routeData = dirRes.data.routes[0];
         const overviewPolyline = routeData.overview_polyline.points;
         const totalDistanceMeters = routeData.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
         const decodedPoints = polyline.decode(overviewPolyline).map(p => ({ latitude: p[0], longitude: p[1] }));
 
-        // 4. Aggregator (One scan for both)
+        // 🟢 2. Extract Exact Leg Distances (Road Distance)
+        // legs[0] = Start -> Stop1, legs[1] = Stop1 -> Stop2 ...
+        const legDistancesKm = routeData.legs.map(leg => leg.distance.value / 1000);
+
         await aggregator.processRouteTiles(decodedPoints);
 
-        // 🟢 5. Run DUAL Strategies in Parallel
         console.log("⚡ Calculating FAST & SLOW routes...");
-        
+        const startTime = new Date();
+
+        // 🟢 3. Pass legDistancesKm to Router
         const [fastResult, slowResult] = await Promise.all([
             planRoute(
-                { lat: start.lat, lng: start.lng }, 
-                { lat: end.lat, lng: end.lng }, 
-                carConfig, 
-                startSOCNum, 
-                10, // Fast Buffer
-                80, 
-                decodedPoints, 
-                db, 
-                'FAST'
+                { lat: start.lat, lng: start.lng }, { lat: end.lat, lng: end.lng }, waypoints, 
+                carConfig, startSOCNum, 10, 80, decodedPoints, db, 'FAST', 
+                isDestinationChargerAvailable, 
+                legDistancesKm // <--- NEW ARGUMENT
             ),
             planRoute(
-                { lat: start.lat, lng: start.lng }, 
-                { lat: end.lat, lng: end.lng }, 
-                carConfig, 
-                startSOCNum, 
-                25, // Slow Buffer
-                80, 
-                decodedPoints, 
-                db, 
-                'SLOW'
+                { lat: start.lat, lng: start.lng }, { lat: end.lat, lng: end.lng }, waypoints, 
+                carConfig, startSOCNum, 25, 80, decodedPoints, db, 'SLOW', 
+                isDestinationChargerAvailable, 
+                legDistancesKm // <--- NEW ARGUMENT
             )
         ]);
 
-        // 6. ENRICHMENT (Only needed for the "FAST" result initially to save time, or do both)
-        // For speed, let's just send raw data. The frontend can request details on click if needed.
-        // OR, we can do a lightweight enrichment for both.
-        // Let's prioritize FAST enrichment.
-        
-        const enrichedFastStops = await enrichStops(fastResult.plannedStops);
-        const enrichedSlowStops = await enrichStops(slowResult.plannedStops);
+        const enrichedFastStops = await enrichStops(fastResult.plannedStops, startTime);
+        const enrichedSlowStops = await enrichStops(slowResult.plannedStops, startTime);
+
+        if (enrichedFastStops.length > 0) {
+            console.log(`✅ [Route Success] Planned ${enrichedFastStops.length} stops.`);
+        }
 
         res.json({
             tripId: `trip_${Date.now()}`,
@@ -181,14 +258,8 @@ router.post('/plan-route', async (req, res) => {
                 endName: end.name,
             },
             strategies: {
-                FAST: { 
-                    plannedStops: enrichedFastStops, 
-                    allCandidates: fastResult.allCandidates 
-                },
-                SLOW: { 
-                    plannedStops: enrichedSlowStops, 
-                    allCandidates: slowResult.allCandidates 
-                }
+                FAST: { plannedStops: enrichedFastStops, allCandidates: fastResult.allCandidates },
+                SLOW: { plannedStops: enrichedSlowStops, allCandidates: slowResult.allCandidates }
             }
         });
 
@@ -198,56 +269,145 @@ router.post('/plan-route', async (req, res) => {
     }
 });
 
-// Helper to Enrich Stops (Refactored out to reuse)
-async function enrichStops(stops) {
-    return Promise.all(stops.map(async (stop) => {
-        const station = stop.station;
-        // Check for Ghost Specs
-        if ((station.source === 'google' || station.powerkw === 0) && station.id) {
-            // console.log(`🔍 [Enricher] Checking specs for ${station.name}...`);
-            const specs = await fetchStationSpecs(station.id);
-            if (specs) {
-                station.powerkw = specs.powerkw;
-                station.connectorTypes = specs.connectors;
-                await updateStationSpecs(station.id, specs);
-            }
-        }
-        // Check for Amenities
-        if (!station.amenities || station.amenities.length === 0) {
+// 🟢 Helper to Enrich Stops (Optimized for Speed)
+// 🟢 Helper: Enrich Stops (With Safety)
+async function enrichStops(stops, startTime) {
+    if (!stops || stops.length === 0) return [];
+
+    return Promise.all(stops.map(async (stop, index) => {
+        
+        // 🟢 SAFETY: Explicit check for waypoints
+        const stationId = stop.station.id || "";
+        const isRealStation = stationId && 
+                              !stationId.toString().startsWith('wp_') && 
+                              !stationId.toString().startsWith('trip_');
+
+        if (isRealStation) {
             try {
-                const googleAmenities = await fetchAmenitiesForPoint(station.lat, station.lng);
-                const mapped = googleAmenities.map(a => ({ name: a.name, type: a.type }));
-                await savePremiumAmenities(station.id, mapped);
-                station.amenities = mapped.map(a => a.type.replace('_', ' '));
-            } catch (e) { }
+                fetchAmenitiesForPoint(stop.station.lat, stop.station.lng, stationId)
+                    .then(fetched => {
+                        if(fetched.length > 0) savePremiumAmenities(stationId, fetched, 'lazy');
+                    })
+                    .catch(() => {});
+            } catch (e) {}
         }
-        return stop;
+
+        const arrivalDate = new Date(stop.arrivalTime);
+        const diffMs = arrivalDate - startTime;
+        const diffMins = Math.round(diffMs / 60000);
+
+        return {
+            ...stop,
+            etaString: diffMins > 0 ? `+${Math.floor(diffMins/60)}h ${diffMins%60}m` : "Now"
+        };
     }));
 }
 
-// --- OSM TEST ROUTE ---
+// ... [Test Routes] ...
 router.get('/test/osm', async (req, res) => {
     try {
         const { lat, lng } = req.query;
         if (!lat || !lng) return res.status(400).json({ error: "Missing lat/lng" });
-
-        console.log(`[Test] Calling OSM for ${lat}, ${lng}`);
         const data = await fetchRestaurantsForArea(parseFloat(lat), parseFloat(lng), 5000);
-        
         res.json({ count: data.length, results: data });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// --- STATUS ENDPOINTS ---
 router.get('/status/tile', async (req, res) => {
     try {
         const { lat, lng } = req.query;
         if (!lat || !lng) return res.status(400).send("Missing lat/lng");
         const status = await db.getTileStatus(lat, lng);
         res.json(status);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 🟢 NEW: Receive User Verification (Golden Data)
+// 🟢 NEW: Receive User Verification (Golden Data + Consensus Logic)
+router.post('/verify', async (req, res) => {
+    try {
+        const { stationId, power, type, status, price, chargeSuccess, amenities, timestamp } = req.body;
+        
+        if (!stationId) return res.status(400).json({ error: "Station ID required" });
+
+        // 1. Save Raw Report (History)
+        await db.pool.query(`
+            INSERT INTO station_verifications 
+            (station_id, power_kw, connector_type, status, price, charge_success, amenities, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8 / 1000.0))
+        `, [
+            stationId, 
+            parseFloat(power) || null, 
+            type, 
+            status, 
+            parseFloat(price) || null, 
+            chargeSuccess, 
+            amenities, 
+            timestamp
+        ]);
+
+        // 2. Immediate Feedback (Incremental Update)
+        // Give a small trust boost/penalty immediately so the user feels heard.
+        const trustChange = chargeSuccess ? 5 : -5;
+        
+        await db.pool.query(`
+            UPDATE stationsmaster 
+            SET 
+                powerkw = COALESCE($1, powerkw),
+                last_verified_at = NOW(),
+                trust_score = LEAST(100, GREATEST(0, trust_score + $2)) 
+            WHERE id = $3
+        `, [parseFloat(power) || null, trustChange, stationId]);
+
+        // 3. Save User Note (Optional)
+        if (amenities && amenities.length > 3) {
+            await db.pool.query(`
+                INSERT INTO station_amenities (station_id, name, amenity_type, source, distance_m)
+                VALUES ($1, $2, 'user_note', 'user', 0)
+                ON CONFLICT DO NOTHING
+            `, [stationId, amenities]);
+        }
+
+        // ============================================================
+        // 🟢 4. CONSENSUS LOGIC (The "3-Person Rule")
+        // ============================================================
+        const THRESHOLD = 3; 
+
+        // Fetch verification stats for last 7 days
+        const historyRes = await db.pool.query(`
+            SELECT status 
+            FROM station_verifications 
+            WHERE station_id = $1 
+            AND created_at > NOW() - INTERVAL '7 days'
+        `, [stationId]);
+
+        const reports = historyRes.rows;
+        const workingCount = reports.filter(r => r.status === 'Working').length;
+        const brokenCount = reports.filter(r => r.status === 'Broken').length;
+
+        // Apply Consensus Updates
+        if (workingCount >= THRESHOLD) {
+            console.log(`🏆 [Consensus] Station ${stationId} is CONFIRMED WORKING`);
+            await db.pool.query(`
+                UPDATE stationsmaster 
+                SET verified_status = 'Working', trust_score = 95 
+                WHERE id = $1
+            `, [stationId]);
+        } 
+        else if (brokenCount >= THRESHOLD) {
+            console.log(`⚠️ [Consensus] Station ${stationId} is CONFIRMED BROKEN`);
+            await db.pool.query(`
+                UPDATE stationsmaster 
+                SET verified_status = 'Broken', trust_score = 10 
+                WHERE id = $1
+            `, [stationId]);
+        }
+
+        console.log(`✅ [Verify] Station ${stationId} updated (Reports: ${reports.length})`);
+        res.json({ success: true, message: "Verification saved & consensus checked" });
+
     } catch (e) {
+        console.error("Verification Save Failed:", e.message);
         res.status(500).json({ error: e.message });
     }
 });
