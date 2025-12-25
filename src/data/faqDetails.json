@@ -1,0 +1,1403 @@
+[
+  {
+    "id": "101",
+    "keywords": ["payment", "failed", "money", "deducted", "refund", "transaction"],
+    "question": "My payment failed but money was deducted.",
+    "answer": "Don't worry! If the charging session did not start, the deducted amount is automatically refunded to your original payment method within 5-7 business days.",
+    "category": "Billing"
+  },
+  {
+    "id": "102",
+    "keywords": ["connector", "stuck", "gun", "unlock", "remove", "jammed"],
+    "question": "The charging gun is stuck and won't unlock.",
+    "answer": "First, ensure charging has stopped in the app. Then, press the 'Unlock' button on your car key fob 3 times. If that fails, most cars have an emergency manual release lever inside the boot/trunk.",
+    "category": "Hardware",
+    "videoLink": "https://www.youtube.com/watch?v=example_connector_video"
+  },
+  {
+    "id": "103",
+    "keywords": ["slow", "speed", "charging", "kw", "low power"],
+    "question": "Why is my car charging slowly?",
+    "answer": "Charging speed depends on your car's BMS. If your battery is over 80% (trickle charging) or the battery temperature is too high/low, the car reduces intake speed to protect the cells.",
+    "category": "Charging"
+  },
+  {
+    "id": "104",
+    "keywords": ["start", "initiate", "app", "qr", "scan"],
+    "question": "How do I start charging?",
+    "answer": "1. Plug the connector into your car. 2. Scan the QR code on the machine using the VoltPath app. 3. Confirm payment method and swipe 'Start Charging'.",
+    "category": "Getting Started"
+  },
+  {
+    "id": "105",
+    "keywords": ["stop", "end", "terminate", "finish"],
+    "question": "How do I stop the charging session?",
+    "answer": "Open the active session screen in the app and slide/tap 'Stop Charging'. Wait for the connector to unlock (listen for a click sound) before unplugging.",
+    "category": "Charging"
+  },
+  {
+    "id": "106",
+    "keywords": ["cost", "price", "rate", "tariff", "expensive"],
+    "question": "How much does charging cost?",
+    "answer": "Rates vary by station operator (CPO), usually between ₹15 to ₹25 per kWh. You can see the exact rate per unit on the station details card before you plug in.",
+    "category": "Billing"
+  },
+  {
+    "id": "107",
+    "keywords": ["rain", "wet", "water", "safe", "monsoon"],
+    "question": "Is it safe to charge in the rain?",
+    "answer": "Yes, completely safe. EV connectors and charging ports are waterproof (IP67 rated). Just ensure water doesn't pool directly inside the open connector pins.",
+    "category": "Safety"
+  },
+  {
+    "id": "108",
+    "keywords": ["compatible", "ccs2", "chademo", "type 2", "plug"],
+    "question": "Is this charger compatible with my car?",
+    "answer": "VoltPath supports all major standards. Most Indian cars (Nexon, ZS EV) use CCS2 for DC fast charging. Two-wheelers mostly use standard 15A sockets or proprietary plugs.",
+    "category": "Hardware"
+  },
+  {
+    "id": "109",
+    "keywords": ["wallet", "balance", "topup", "recharge"],
+    "question": "Why do I need a minimum wallet balance?",
+    "answer": "A minimum balance (usually ₹200-₹500) ensures the session doesn't cut off abruptly if the cost exceeds your initial estimate. Unused balance remains safe in your wallet.",
+    "category": "Billing"
+  },
+  {
+    "id": "110",
+    "keywords": ["history", "receipt", "invoice", "past"],
+    "question": "Where can I see my past charging sessions?",
+    "answer": "Go to the 'Profile' tab and select 'Charging History'. You can view details like energy consumed, cost, and download invoices there.",
+    "category": "Account"
+  },
+  {
+    "id": "111",
+    "keywords": ["full", "100%", "limit", "cutoff"],
+    "question": "Should I charge to 100% every time?",
+    "answer": "For daily use, it's recommended to stop at 80-90% to prolong battery life. Charge to 100% mainly for long highway trips.",
+    "category": "Battery Care"
+  },
+  {
+    "id": "112",
+    "keywords": ["emergency", "stop", "button", "red"],
+    "question": "When should I use the Emergency Stop button?",
+    "answer": "Only use the physical Red Emergency Button on the charger if you see smoke, sparks, or fire. Using it for normal stops can lock the gun and require a technician to reset.",
+    "category": "Safety"
+  },
+  {
+    "id": "113",
+    "keywords": ["booking", "reserve", "slot", "ahead"],
+    "question": "Can I reserve a charging slot in advance?",
+    "answer": "Currently, VoltPath works on a first-come-first-serve basis. However, you can check the 'Real-Time Availability' status on the map to see if a spot is free before driving there.",
+    "category": "App Usage"
+  },
+  {
+    "id": "114",
+    "keywords": ["2 wheeler", "scooter", "bike", "ola", "ather"],
+    "question": "Can I charge my electric scooter here?",
+    "answer": "Check the filter options. Select '2-Wheeler' or '3-Pin Point' to find chargers compatible with scooters like Ola, Ather, or TVS iQube.",
+    "category": "Compatibility"
+  },
+  {
+    "id": "115",
+    "keywords": ["support", "customer care", "help", "number"],
+    "question": "How do I contact customer support?",
+    "answer": "You can use the 'Chat Support' feature in the app menu or call the helpline number listed on the physical sticker of the charging machine.",
+    "category": "Support"
+  },
+  {
+    "id": "116",
+    "keywords": ["power", "cut", "outage", "interruption"],
+    "question": "What happens if power goes out while charging?",
+    "answer": "The session will pause. Once power returns, most modern chargers attempt to resume automatically. If not, you may need to restart the session from the app.",
+    "category": "Charging"
+  },
+  {
+    "id": "117",
+    "keywords": ["account", "delete", "remove", "privacy"],
+    "question": "How do I delete my VoltPath account?",
+    "answer": "Go to Settings > Account > Delete Account. Note that this action is permanent and any remaining wallet balance should be withdrawn first.",
+    "category": "Account"
+  },
+  {
+    "id": "118",
+    "keywords": ["map", "location", "wrong", "gps"],
+    "question": "The charger location on the map is wrong.",
+    "answer": "We apologize for the inconvenience. Please use the 'Report Issue' button on the station card so our team can update the coordinates immediately.",
+    "category": "App Usage"
+  },
+  {
+    "id": "119",
+    "keywords": ["adapter", "extension", "cord"],
+    "question": "Can I use an extension cord?",
+    "answer": "No. Never use standard household extension cords for EV charging as they can overheat and melt. Only use manufacturer-approved heavy-duty cables.",
+    "category": "Safety"
+  },
+  {
+    "id": "120",
+    "keywords": ["ac", "dc", "difference", "fast"],
+    "question": "What is the difference between AC and DC charging?",
+    "answer": "AC is slower (3-7 hours) and good for homes/offices. DC is fast charging (30-60 mins) used on highways to fill your battery quickly.",
+    "category": "Charging"
+  },
+  {
+    "id": "121",
+    "keywords": ["rfid", "card", "tag", "scan"],
+    "question": "Do I need an RFID card to charge?",
+    "answer": "Not necessarily. While some networks offer RFID cards for quick starts, the VoltPath app allows you to start all supported chargers via QR code scanning.",
+    "category": "Getting Started"
+  },
+  {
+    "id": "122",
+    "keywords": ["authorization", "hold", "bank"],
+    "question": "Why is there an 'Authorization Hold' on my card?",
+    "answer": "This is a temporary hold to ensure funds are available. It is not a charge. The hold is released and the actual amount is charged once charging completes.",
+    "category": "Billing"
+  },
+  {
+    "id": "123",
+    "keywords": ["verify", "email", "otp", "login"],
+    "question": "I am not receiving the OTP for login.",
+    "answer": "Please check your network signal or SMS spam folder. If the issue persists, wait 60 seconds and try the 'Resend via WhatsApp' option.",
+    "category": "Account"
+  },
+  {
+    "id": "124",
+    "keywords": ["trip", "plan", "route", "long distance"],
+    "question": "How do I plan a long trip?",
+    "answer": "Use the 'Trip Planner' tab. Enter your destination and car model. VoltPath will suggest the best charging stops based on your battery range.",
+    "category": "App Usage"
+  },
+  {
+    "id": "125",
+    "keywords": ["available", "occupied", "busy", "wait"],
+    "question": "What if the charger is occupied?",
+    "answer": "The app shows real-time status: Green for Available, Red for Occupied. If occupied, check the 'Estimated Wait Time' shown on the map pin.",
+    "category": "App Usage"
+  },
+  {
+    "id": "126",
+    "keywords": ["noise", "fan", "loud", "humming"],
+    "question": "Why is the charger making a loud noise?",
+    "answer": "DC Fast Chargers have powerful cooling fans to keep the electronics cool. A humming or whirring sound is completely normal during operation.",
+    "category": "Hardware"
+  },
+  {
+    "id": "127",
+    "keywords": ["disconnect", "cable", "unplug", "force"],
+    "question": "Can someone unplug my car while I'm away?",
+    "answer": "For most modern EVs (CCS2/Type 2), the connector locks into the car port when the car is locked. Strangers cannot unplug it without your car key.",
+    "category": "Safety"
+  },
+  {
+    "id": "128",
+    "keywords": ["tesla", "connector", "nacs"],
+    "question": "Can I charge a Tesla here?",
+    "answer": "If the station supports CCS2, yes (for compatible models). If the station is Tesla-exclusive (Supercharger), only Tesla vehicles can use it.",
+    "category": "Compatibility"
+  },
+  {
+    "id": "129",
+    "keywords": ["amenities", "food", "washroom", "wifi"],
+    "question": "How do I know if a station has food or washrooms?",
+    "answer": "Click on the station icon. Under 'Amenities', look for icons representing Restrooms, Cafes, Wi-Fi, or Shopping Centers.",
+    "category": "App Usage"
+  },
+  {
+    "id": "130",
+    "keywords": ["points", "rewards", "loyalty", "cashback"],
+    "question": "Does VoltPath offer reward points?",
+    "answer": "Yes! You earn 'VoltPoints' for every kWh charged. You can redeem these for discount coupons on future charging sessions.",
+    "category": "Billing"
+  },
+  {
+    "id": "131",
+    "keywords": ["cable", "bring", "own", "tethered"],
+    "question": "Do I need to bring my own charging cable?",
+    "answer": "For DC Fast Chargers, the cable is attached to the machine. For AC Slow Chargers, you usually need to bring your own Type 2 cable.",
+    "category": "Hardware"
+  },
+  {
+    "id": "132",
+    "keywords": ["voltage", "fluctuation", "safe", "surge"],
+    "question": "Will voltage fluctuation damage my car?",
+    "answer": "No. EV chargers and your car's onboard charger act as stabilizers. If voltage is unsafe, the charger will simply cut power to protect the vehicle.",
+    "category": "Safety"
+  },
+  {
+    "id": "133",
+    "keywords": ["multiple", "cars", "profile", "add"],
+    "question": "Can I add multiple vehicles to my profile?",
+    "answer": "Yes. Go to Profile > My Vehicles > Add New Vehicle. This helps the app suggest compatible chargers for whichever car you are driving.",
+    "category": "Account"
+  },
+  {
+    "id": "134",
+    "keywords": ["refund", "wallet", "bank", "transfer"],
+    "question": "How do I withdraw money from my VoltPath wallet?",
+    "answer": "Go to Wallet > Settings > Withdraw Balance. The amount will be refunded to the original source within 5-7 working days.",
+    "category": "Billing"
+  },
+  {
+    "id": "135",
+    "keywords": ["guest", "login", "register", "skip"],
+    "question": "Can I charge as a guest without logging in?",
+    "answer": "Yes, but features like Charging History, Invoices, and Wallet payments will be disabled. We recommend logging in for a smoother experience.",
+    "category": "Account"
+  },
+  {
+    "id": "136",
+    "keywords": ["range", "km", "distance", "prediction"],
+    "question": "Is the estimated range accurate?",
+    "answer": "Range estimates are based on average driving. Use of AC, high speeds, and uphill terrain will reduce actual range compared to the estimate.",
+    "category": "Battery Care"
+  },
+  {
+    "id": "137",
+    "keywords": ["sim", "network", "offline", "charger"],
+    "question": "The charger screen says 'Network Offline'.",
+    "answer": "This means the charger lost internet connectivity. Try refreshing the app. If it persists, the charger cannot be started remotely.",
+    "category": "Hardware"
+  },
+  {
+    "id": "138",
+    "keywords": ["notification", "alert", "push", "sms"],
+    "question": "Will I get notified when charging is done?",
+    "answer": "Yes, enable Push Notifications in settings. You will receive an alert when your battery reaches 80% and 100%, or if charging stops unexpectedly.",
+    "category": "App Usage"
+  },
+  {
+    "id": "139",
+    "keywords": ["report", "broken", "issue", "damage"],
+    "question": "How do I report a broken charger?",
+    "answer": "Select the station on the map, scroll down, and tap 'Report Issue'. You can upload a photo and describe the problem (e.g., 'Screen Broken').",
+    "category": "Support"
+  },
+  {
+    "id": "140",
+    "keywords": ["favorites", "save", "home", "work"],
+    "question": "Can I save my favorite stations?",
+    "answer": "Yes. Tap the 'Heart' icon on any station card to add it to your Favorites list for quick access later.",
+    "category": "App Usage"
+  },
+  {
+    "id": "141",
+    "keywords": ["time", "estimate", "duration", "long"],
+    "question": "How long will it take to charge?",
+    "answer": "It varies. A 30kW DC charger adds ~100km range in 40 mins. A 7kW AC charger takes 6-8 hours for a full charge.",
+    "category": "Charging"
+  },
+  {
+    "id": "142",
+    "keywords": ["heat", "hot", "sun", "shade"],
+    "question": "Does heat affect charging speed?",
+    "answer": "Yes. Extreme heat (above 40°C) can slow down charging as the car's thermal management system works harder to cool the battery.",
+    "category": "Battery Care"
+  },
+  {
+    "id": "143",
+    "keywords": ["receipt", "gst", "tax", "bill"],
+    "question": "Can I get a GST invoice?",
+    "answer": "Yes. Ensure your GST number is updated in your Profile. All invoices generated after that will include your GST details.",
+    "category": "Billing"
+  },
+  {
+    "id": "144",
+    "keywords": ["nexon", "tata", "mg", "hyundai"],
+    "question": "Which charger is best for Tata Nexon EV?",
+    "answer": "Nexon EV uses the CCS2 standard. Look for any DC Fast Charger rated 25kW or higher for the best experience.",
+    "category": "Compatibility"
+  },
+  {
+    "id": "145",
+    "keywords": ["share", "location", "whatsapp", "friend"],
+    "question": "How do I share a station location?",
+    "answer": "Tap the 'Share' icon on the station details card. You can send the Google Maps link directly via WhatsApp or SMS.",
+    "category": "App Usage"
+  },
+  {
+    "id": "146",
+    "keywords": ["queue", "line", "waiting"],
+    "question": "Is there a virtual queue system?",
+    "answer": "Not yet. Currently, queuing is physical. Please park behind the car currently charging and wait for your turn.",
+    "category": "App Usage"
+  },
+  {
+    "id": "147",
+    "keywords": ["connector", "types", "plug", "socket"],
+    "question": "What are the different connector types?",
+    "answer": "CCS2 (Fast DC), Type 2 (Slow AC), CHAdeMO (Legacy DC), and Bharat DC001 (Old slow DC for commercial cars).",
+    "category": "Hardware"
+  },
+  {
+    "id": "148",
+    "keywords": ["subscription", "plan", "monthly", "membership"],
+    "question": "Is there a monthly membership plan?",
+    "answer": "We are working on 'VoltPass', a subscription that will offer lower rates per unit. Stay tuned for updates!",
+    "category": "Billing"
+  },
+  {
+    "id": "149",
+    "keywords": ["language", "hindi", "tamil", "settings"],
+    "question": "Can I change the app language?",
+    "answer": "Yes. Go to Settings > Language. We currently support English, Hindi, Tamil, and Marathi.",
+    "category": "App Usage"
+  },
+  {
+    "id": "150",
+    "keywords": ["update", "version", "new", "feature"],
+    "question": "How do I update the app?",
+    "answer": "Visit the Google Play Store or Apple App Store and search for 'VoltPath'. If an update is available, tap 'Update'.",
+    "category": "App Usage"
+  },
+  {
+    "id": "151",
+    "keywords": ["idle", "fee", "penalty", "overstay", "extra charge"],
+    "question": "Why was I charged an 'Idle Fee'?",
+    "answer": "An Idle Fee is charged if you leave your car plugged in after charging is complete. This discourages blocking the charger so other users can charge.",
+    "category": "Billing"
+  },
+  {
+    "id": "152",
+    "keywords": ["blocked", "petrol", "diesel", "ice", "parked"],
+    "question": "A petrol/diesel car is parked in the EV charging slot.",
+    "answer": "This is called 'ICEing'. Please ask the station security or staff to assist in moving the vehicle. You can also report the station status as 'Blocked' in the app.",
+    "category": "App Usage"
+  },
+  {
+    "id": "153",
+    "keywords": ["ac", "air conditioner", "sit", "inside", "on"],
+    "question": "Can I sit inside the car with AC on while charging?",
+    "answer": "Yes, it is safe. However, using the AC consumes battery power, which may slightly increase the total charging time.",
+    "category": "Charging"
+  },
+  {
+    "id": "154",
+    "keywords": ["parking", "fee", "mall", "hotel", "ticket"],
+    "question": "Do I have to pay for parking separately?",
+    "answer": "It depends on the location. Charging costs usually do not include parking fees charged by malls, hotels, or public parking lots. Please check the local signage.",
+    "category": "Billing"
+  },
+  {
+    "id": "155",
+    "keywords": ["power", "drop", "share", "split", "slow"],
+    "question": "Why did my charging speed drop when another car plugged in?",
+    "answer": "Some dual-gun chargers use 'Load Balancing'. If two cars charge simultaneously, the total power (e.g., 60kW) splits between them (30kW each).",
+    "category": "Charging"
+  },
+  {
+    "id": "156",
+    "keywords": ["rfid", "lost", "stolen", "card"],
+    "question": "I lost my VoltPath RFID card. What should I do?",
+    "answer": "Go to Profile > RFID Management and tap 'Deactivate' immediately to prevent misuse. You can order a replacement card from the same menu.",
+    "category": "Account"
+  },
+  {
+    "id": "157",
+    "keywords": ["fleet", "business", "taxi", "corporate", "gst"],
+    "question": "Can I open a corporate account for my fleet?",
+    "answer": "Yes! VoltPath Business offers centralized billing and fleet management dashboards. Please contact sales@voltpath.com for details.",
+    "category": "Account"
+  },
+  {
+    "id": "158",
+    "keywords": ["host", "partner", "land", "install", "business"],
+    "question": "I want to install a charger on my property.",
+    "answer": "Great! Use the 'Become a Partner' section in the side menu to submit your location details. Our team will evaluate the site for feasibility.",
+    "category": "Support"
+  },
+  {
+    "id": "159",
+    "keywords": ["filter", "brand", "cpo", "tata", "zeon"],
+    "question": "Can I filter chargers by specific brands?",
+    "answer": "Yes. On the Map screen, tap the 'Filter' button and select your preferred networks (e.g., Tata Power, Zeon, Statiq) to see only their chargers.",
+    "category": "App Usage"
+  },
+  {
+    "id": "160",
+    "keywords": ["blank", "screen", "display", "off", "dead"],
+    "question": "The charger screen is blank/off.",
+    "answer": "The charger might be in sleep mode. Try plugging it into your car to wake it up. If it remains off, the unit typically has a power fault.",
+    "category": "Hardware"
+  },
+  {
+    "id": "161",
+    "keywords": ["promo", "code", "coupon", "discount", "offer"],
+    "question": "How do I apply a promo code?",
+    "answer": "On the 'Payment Method' screen before starting a session, tap 'Apply Coupon'. Enter your code to get a discount on the session.",
+    "category": "Billing"
+  },
+  {
+    "id": "162",
+    "keywords": ["rain", "shock", "electric", "wet"],
+    "question": "Will I get an electric shock if I touch the charger in rain?",
+    "answer": "No. The casing is grounded and insulated. However, avoid touching the copper pins inside the connector directly with wet hands.",
+    "category": "Safety"
+  },
+  {
+    "id": "163",
+    "keywords": ["child", "kids", "safe", "touch"],
+    "question": "Is it safe for children to be around the charger?",
+    "answer": "While chargers are safe, they are high-voltage industrial equipment. Keep children away from the cables and connectors to prevent tripping or accidental damage.",
+    "category": "Safety"
+  },
+  {
+    "id": "164",
+    "keywords": ["pacemaker", "heart", "medical", "interference"],
+    "question": "Can I use a charger if I have a pacemaker?",
+    "answer": "EV chargers emit electromagnetic fields. While generally safe, it is recommended to maintain a distance of at least 6-12 inches from the main unit and cables.",
+    "category": "Safety"
+  },
+  {
+    "id": "165",
+    "keywords": ["cleaning", "connector", "dirt", "dust"],
+    "question": "Should I clean the connector pins?",
+    "answer": "No! Never insert anything into the connector pins. If you see debris, use compressed air or report it to the station operator.",
+    "category": "Hardware"
+  },
+  {
+    "id": "166",
+    "keywords": ["extension", "home", "slow", "3 pin"],
+    "question": "Can I use a 3-pin socket at a public station?",
+    "answer": "Some public stations have a 15A socket for emergency slow charging. You must bring your own portable charger (travel adapter) to use these.",
+    "category": "Hardware"
+  },
+  {
+    "id": "167",
+    "keywords": ["referral", "friend", "invite", "bonus"],
+    "question": "Is there a referral program?",
+    "answer": "Yes. Go to 'Invite Friends' in the menu. Share your link, and you both get ₹100 charging credit after their first successful session.",
+    "category": "Billing"
+  },
+  {
+    "id": "168",
+    "keywords": ["auto", "recharge", "wallet", "balance"],
+    "question": "How do I enable auto-recharge for my wallet?",
+    "answer": "In Wallet Settings, toggle 'Auto-Reload'. You can set a threshold (e.g., when balance < ₹100, add ₹500) so you never run out of funds.",
+    "category": "Billing"
+  },
+  {
+    "id": "169",
+    "keywords": ["invoice", "mail", "download", "missing"],
+    "question": "I didn't receive my invoice via email.",
+    "answer": "Check your spam folder. You can also manually download past invoices anytime from the 'Charging History' section in the app.",
+    "category": "Billing"
+  },
+  {
+    "id": "170",
+    "keywords": ["fake", "scam", "doesn't exist", "ghost"],
+    "question": "The charger location doesn't exist (Ghost Station).",
+    "answer": "Please report this immediately using the 'Report Issue' > 'Location Incorrect' option. We will verify and delist the station if necessary.",
+    "category": "Support"
+  },
+  {
+    "id": "171",
+    "keywords": ["biometric", "face id", "fingerprint", "login"],
+    "question": "Can I use FaceID or Fingerprint to login?",
+    "answer": "Yes. You can enable Biometric Login in the App Settings for faster and more secure access to your account.",
+    "category": "Account"
+  },
+  {
+    "id": "172",
+    "keywords": ["devices", "login", "multiple", "phone"],
+    "question": "Can I use the same account on two phones?",
+    "answer": "Yes, you can be logged in on multiple devices. Both phones will see the same wallet balance and live session status.",
+    "category": "Account"
+  },
+  {
+    "id": "173",
+    "keywords": ["transfer", "send", "money", "friend"],
+    "question": "Can I transfer my wallet balance to a friend?",
+    "answer": "No. Wallet balances are non-transferable between accounts. You can only use it for charging your own sessions.",
+    "category": "Billing"
+  },
+  {
+    "id": "174",
+    "keywords": ["dark mode", "theme", "night", "light"],
+    "question": "Does the app support Dark Mode?",
+    "answer": "Yes. The app follows your system settings by default. You can manually force Dark or Light mode in the Settings menu.",
+    "category": "App Usage"
+  },
+  {
+    "id": "175",
+    "keywords": ["offline", "no internet", "map", "download"],
+    "question": "Can I use the map offline?",
+    "answer": "Basic map viewing might work if cached, but you need an active internet connection to see real-time charger status and start sessions.",
+    "category": "App Usage"
+  },
+  {
+    "id": "176",
+    "keywords": ["cancel", "booking", "reservation", "refund"],
+    "question": "How do I cancel a reservation?",
+    "answer": "Go to 'My Bookings', select the upcoming slot, and tap 'Cancel'. Refunds are processed according to the cancellation policy shown at booking.",
+    "category": "App Usage"
+  },
+  {
+    "id": "177",
+    "keywords": ["review", "rating", "edit", "change"],
+    "question": "Can I edit my review of a station?",
+    "answer": "Yes. Go to Charging History, find the session, and tap 'Edit Review'. Your feedback helps other users choose better stations.",
+    "category": "App Usage"
+  },
+  {
+    "id": "178",
+    "keywords": ["unlisted", "private", "charger", "map"],
+    "question": "Why isn't my office charger showing on the map?",
+    "answer": "Some chargers are marked as 'Private' or 'Restricted Access' and are hidden from the public map. Ask your facility manager for the access link.",
+    "category": "App Usage"
+  },
+  {
+    "id": "179",
+    "keywords": ["expiry", "validity", "wallet", "points"],
+    "question": "Does my wallet balance expire?",
+    "answer": "Cash balance added via UPI/Card never expires. However, promotional credits or VoltPoints may have a validity period of 6-12 months.",
+    "category": "Billing"
+  },
+  {
+    "id": "180",
+    "keywords": ["wrong", "amount", "overcharged", "dispute"],
+    "question": "I think I was overcharged for a session.",
+    "answer": "Please raise a dispute from the 'Charging History' page. Select the session and tap 'Report Billing Issue'. Our team will audit the logs.",
+    "category": "Support"
+  },
+  {
+    "id": "181",
+    "keywords": ["damage", "liability", "scratch", "insurance"],
+    "question": "The charger cable scratched my car.",
+    "answer": "Please handle heavy DC cables with care. VoltPath is a discovery platform and is not liable for physical damages caused by station hardware.",
+    "category": "Support"
+  },
+  {
+    "id": "182",
+    "keywords": ["pets", "dog", "cat", "station"],
+    "question": "Are pets allowed at charging stations?",
+    "answer": "Outdoor stations are generally pet-friendly. However, keep pets inside the vehicle or on a leash for safety around moving traffic.",
+    "category": "Safety"
+  },
+  {
+    "id": "183",
+    "keywords": ["smoking", "cigarette", "fire", "hazard"],
+    "question": "Can I smoke near the charger?",
+    "answer": "No. Charging stations are strict No Smoking zones. Batteries emit gases that can be flammable in rare failure scenarios.",
+    "category": "Safety"
+  },
+  {
+    "id": "184",
+    "keywords": ["food", "eat", "drink", "lounge"],
+    "question": "Can I eat while charging?",
+    "answer": "Yes. Many charging hubs have cafes nearby. Please do not leave trash or food waste around the charging equipment.",
+    "category": "App Usage"
+  },
+  {
+    "id": "185",
+    "keywords": ["ceo", "manager", "escalate", "complain"],
+    "question": "I want to speak to a manager immediately.",
+    "answer": "For urgent escalations, please email escalation@voltpath.com with your Ticket ID. Our senior support team will respond within 24 hours.",
+    "category": "Support"
+  },
+  {
+    "id": "186",
+    "keywords": ["800v", "architecture", "kia", "ioniq", "taycan"],
+    "question": "Does this charger support 800V cars?",
+    "answer": "Check the station details. Chargers rated 150kW+ often support 800V architecture (like Kia EV6, Taycan) for ultra-fast charging.",
+    "category": "Compatibility"
+  },
+  {
+    "id": "187",
+    "keywords": ["tyre", "pressure", "air", "maintenance"],
+    "question": "Is there a tyre inflator at the station?",
+    "answer": "Some premium charging hubs offer air/nitrogen filling. Look for the 'Tyre Service' icon in the station amenities list.",
+    "category": "App Usage"
+  },
+  {
+    "id": "188",
+    "keywords": ["firmware", "update", "ota", "interrupt"],
+    "question": "Can I update my car software while charging?",
+    "answer": "It is NOT recommended. Many cars disable charging during a firmware update, or the update might fail if power fluctuates.",
+    "category": "Battery Care"
+  },
+  {
+    "id": "189",
+    "keywords": ["phantom", "drain", "loss", "parked"],
+    "question": "My battery dropped 5% while parked overnight.",
+    "answer": "This is 'Phantom Drain', caused by background systems (Sentry mode, connected apps). It is normal and not related to the charging app.",
+    "category": "Battery Care"
+  },
+  {
+    "id": "190",
+    "keywords": ["tow", "charge", "regen", "flat"],
+    "question": "Can I charge by towing the car (Regen)?",
+    "answer": "While technically possible in some EVs, it is dangerous and can overheat the motor/battery. Always use a proper charger.",
+    "category": "Safety"
+  },
+  {
+    "id": "191",
+    "keywords": ["solar", "green", "renewable", "sun"],
+    "question": "Is this charging station solar powered?",
+    "answer": "Stations powered by renewable energy are marked with a 'Green Leaf' icon on the map. These offer a zero-emission charging experience.",
+    "category": "App Usage"
+  },
+  {
+    "id": "192",
+    "keywords": ["v2l", "load", "reverse", "power"],
+    "question": "Does the app support V2L (Vehicle to Load)?",
+    "answer": "V2L is a feature of your car, not the app. You can use your car's V2L adapter to power camping gear or laptops independently.",
+    "category": "Compatibility"
+  },
+  {
+    "id": "193",
+    "keywords": ["wheelchair", "accessible", "disability", "ramp"],
+    "question": "Is the station wheelchair accessible?",
+    "answer": "Look for the 'Wheelchair Accessible' icon. These stations have wider parking bays and lowered screens/connectors.",
+    "category": "App Usage"
+  },
+  {
+    "id": "194",
+    "keywords": ["wifi", "internet", "connect", "password"],
+    "question": "How do I connect to the station Wi-Fi?",
+    "answer": "If available, the Wi-Fi name and password will be displayed on the 'Session Active' screen so you can work or stream while charging.",
+    "category": "App Usage"
+  },
+  {
+    "id": "195",
+    "keywords": ["error", "code", "fault", "001", "002"],
+    "question": "I see an error code (e.g., Err 001) on the machine.",
+    "answer": "Please enter this error code into the 'Chat Support' bot. It will look up the specific technical manual and guide you.",
+    "category": "Hardware"
+  },
+  {
+    "id": "196",
+    "keywords": ["cable", "length", "short", "reach"],
+    "question": "The cable is too short to reach my port.",
+    "answer": "Please park closer or reverse into the spot. Never try to stretch the cable tight, as it may damage your car's charging port.",
+    "category": "Hardware"
+  },
+  {
+    "id": "197",
+    "keywords": ["wait", "time", "estimate", "queue"],
+    "question": "How accurate is the estimated wait time?",
+    "answer": "It is an estimate based on the current user's battery percentage. Actual wait time may vary if they charge to 100% instead of 80%.",
+    "category": "App Usage"
+  },
+  {
+    "id": "198",
+    "keywords": ["gst", "input", "credit", "business"],
+    "question": "Can I claim GST input credit?",
+    "answer": "Yes. If you registered as a Business Account and provided a GSTIN, your monthly tax invoice will support input credit claims.",
+    "category": "Billing"
+  },
+  {
+    "id": "199",
+    "keywords": ["voltage", "750v", "400v", "architecture"],
+    "question": "My car is 400V. Can I use a 750V charger?",
+    "answer": "Yes. Modern DC chargers automatically adjust the voltage to match your car's battery voltage (e.g., 400V for Nexon, 800V for EV6).",
+    "category": "Compatibility"
+  },
+  {
+    "id": "200",
+    "keywords": ["data", "privacy", "location", "track"],
+    "question": "Do you track my location when not using the app?",
+    "answer": "No. We only access your location when the app is open to find nearby chargers. We do not track your driving history.",
+    "category": "Account"
+  },
+  {
+    "id": "201",
+    "keywords": ["winter", "cold", "slow", "temperature", "freeze"],
+    "question": "Does cold weather affect charging speed?",
+    "answer": "Yes. Cold batteries accept charge more slowly to prevent damage. You might see speeds drop by 30-50% until the battery warms up.",
+    "category": "Battery Care"
+  },
+  {
+    "id": "202",
+    "keywords": ["precondition", "warm", "battery", "prepare"],
+    "question": "What is 'Battery Preconditioning'?",
+    "answer": "It is a feature in some EVs that warms up the battery before you reach a fast charger, ensuring you get maximum charging speed immediately upon plugging in.",
+    "category": "Battery Care"
+  },
+  {
+    "id": "203",
+    "keywords": ["sleep", "nap", "overnight", "hotel"],
+    "question": "Can I sleep in my car while charging?",
+    "answer": "Yes, it is safe. Just ensure you lock the doors from the inside. If using AC/Heater, keep an eye on the battery level so you don't drain it too much.",
+    "category": "Safety"
+  },
+  {
+    "id": "204",
+    "keywords": ["towing", "trailer", "charge", "drive"],
+    "question": "Can I charge while towing a trailer?",
+    "answer": "Yes, but you may need to unhitch the trailer if the charging spot is not a 'pull-through' type, to avoid blocking the drive lane.",
+    "category": "App Usage"
+  },
+  {
+    "id": "205",
+    "keywords": ["extension", "cord", "home", "danger"],
+    "question": "Why are extension cords dangerous for EVs?",
+    "answer": "EVs draw high continuous current. Household extension cords usually cannot handle this load, leading to overheating, melting, or fire hazards.",
+    "category": "Safety"
+  },
+  {
+    "id": "206",
+    "keywords": ["carplay", "android auto", "apple", "screen"],
+    "question": "Does VoltPath work on Apple CarPlay / Android Auto?",
+    "answer": "Yes! You can view nearby chargers and navigate to them directly from your car's dashboard screen using our CarPlay/Android Auto integration.",
+    "category": "App Usage"
+  },
+  {
+    "id": "207",
+    "keywords": ["smartwatch", "wear os", "apple watch", "wrist"],
+    "question": "Is there a VoltPath app for smartwatches?",
+    "answer": "Yes. You can check your active session status (Battery %, Time Remaining) directly on your Apple Watch or Wear OS device.",
+    "category": "App Usage"
+  },
+  {
+    "id": "208",
+    "keywords": ["voice", "siri", "google assistant", "alexa"],
+    "question": "Can I use voice commands to find chargers?",
+    "answer": "Yes. You can say 'Hey Siri, find a charger on VoltPath' or use Google Assistant shortcuts to locate the nearest station hands-free.",
+    "category": "App Usage"
+  },
+  {
+    "id": "209",
+    "keywords": ["dark mode", "theme", "night", "eyes"],
+    "question": "How do I switch to Dark Mode?",
+    "answer": "The app follows your phone's system settings. You can also force Dark Mode in VoltPath Settings > Display > Theme.",
+    "category": "App Usage"
+  },
+  {
+    "id": "210",
+    "keywords": ["blind", "accessibility", "talkback", "voiceover"],
+    "question": "Is the app accessible for visually impaired users?",
+    "answer": "Yes, VoltPath is optimized for screen readers like TalkBack (Android) and VoiceOver (iOS) with labeled buttons and high-contrast text.",
+    "category": "App Usage"
+  },
+  {
+    "id": "211",
+    "keywords": ["peak", "hours", "rate", "expensive", "time of day"],
+    "question": "What is 'Peak Time' pricing?",
+    "answer": "Some stations charge higher rates during busy hours (e.g., 6 PM - 10 PM) to manage grid load. Check the station details for time-based rates.",
+    "category": "Billing"
+  },
+  {
+    "id": "212",
+    "keywords": ["off-peak", "discount", "cheap", "night"],
+    "question": "Are there discounts for charging at night?",
+    "answer": "Yes! Many chargers offer 'Off-Peak' discounts (usually 11 PM - 6 AM). You can filter the map to find stations with these dynamic rates.",
+    "category": "Billing"
+  },
+  {
+    "id": "213",
+    "keywords": ["autocharge", "plug & charge", "automatic", "start"],
+    "question": "What is 'AutoCharge'?",
+    "answer": "AutoCharge allows the session to start automatically when you plug in, without scanning a QR code. You can enable this for compatible cars in the 'My Vehicles' section.",
+    "category": "Getting Started"
+  },
+  {
+    "id": "214",
+    "keywords": ["iso15118", "plug and charge", "standard"],
+    "question": "Does VoltPath support ISO 15118 Plug & Charge?",
+    "answer": "We are rolling this out selectively. It requires both a compatible car and a compatible charger to securely authenticate via the cable itself.",
+    "category": "Technology"
+  },
+  {
+    "id": "215",
+    "keywords": ["vandalism", "damage", "broken", "report"],
+    "question": "I saw someone damaging a charger.",
+    "answer": "Please report it immediately via the 'Report Issue' button. If you feel unsafe, do not confront them; contact local authorities or station security.",
+    "category": "Safety"
+  },
+  {
+    "id": "216",
+    "keywords": ["lost", "found", "item", "wallet", "forgot"],
+    "question": "I left my personal item at the charging station.",
+    "answer": "Please contact the station operator's customer care number listed on the charger sticker. VoltPath does not manage lost and found items directly.",
+    "category": "Support"
+  },
+  {
+    "id": "217",
+    "keywords": ["cleaning", "screen", "dirty", "touch"],
+    "question": "The charger screen is too dirty to read.",
+    "answer": "Please do not use water to clean it. Wipe it gently with a dry cloth if available, or use the app to start the session without needing the screen.",
+    "category": "Hardware"
+  },
+  {
+    "id": "218",
+    "keywords": ["sun", "glare", "read", "screen"],
+    "question": "I can't read the screen due to sun glare.",
+    "answer": "Try shading the screen with your hand. If the QR code is unreadable, you can enter the 6-digit Station ID manually in the app to start charging.",
+    "category": "Hardware"
+  },
+  {
+    "id": "219",
+    "keywords": ["emergency", "medical", "aed", "first aid"],
+    "question": "Is there a First Aid kit at the station?",
+    "answer": "Some staffed charging hubs have First Aid kits and AEDs. Check the 'Amenities' section of the station details for the 'Medical Assistance' icon.",
+    "category": "Safety"
+  },
+  {
+    "id": "220",
+    "keywords": ["fire", "extinguisher", "safety", "emergency"],
+    "question": "Where is the fire extinguisher?",
+    "answer": "By law, all public charging stations must have a fire extinguisher nearby (usually Type ABC or CO2). Look for the red canister near the main electrical panel.",
+    "category": "Safety"
+  },
+  {
+    "id": "221",
+    "keywords": ["cameras", "cctv", "security", "safe"],
+    "question": "Are the charging stations monitored by cameras?",
+    "answer": "Most premium hubs have 24/7 CCTV surveillance for your safety. Look for the 'CCTV' icon in the station amenities list.",
+    "category": "Safety"
+  },
+  {
+    "id": "222",
+    "keywords": ["lighting", "dark", "night", "scary"],
+    "question": "Is the station well-lit at night?",
+    "answer": "We prioritize safety. Stations verified as 'Well Lit' have a 'Lightbulb' icon. We recommend avoiding unlit, isolated stations late at night.",
+    "category": "Safety"
+  },
+  {
+    "id": "223",
+    "keywords": ["washroom", "clean", "toilet", "restroom"],
+    "question": "Are the washrooms clean?",
+    "answer": "Washrooms are managed by the site host (e.g., fuel station, mall). We encourage users to rate washroom cleanliness in their session review.",
+    "category": "App Usage"
+  },
+  {
+    "id": "224",
+    "keywords": ["lounge", "waiting", "wifi", "sofa"],
+    "question": "How do I access the AC Lounge?",
+    "answer": "Some lounges require a keypad code, which is displayed in the app once your charging session begins. Others are open to all charging customers.",
+    "category": "App Usage"
+  },
+  {
+    "id": "225",
+    "keywords": ["food", "court", "restaurant", "cafe"],
+    "question": "What food options are nearby?",
+    "answer": "Tap the 'Nearby' tab on the station card to see a list of restaurants and cafes within walking distance, along with their ratings.",
+    "category": "App Usage"
+  },
+  {
+    "id": "226",
+    "keywords": ["roaming", "network", "partner", "ocpi"],
+    "question": "What is 'Roaming' in EV charging?",
+    "answer": "Roaming allows you to use the VoltPath app to charge at partner networks (like Zeon or Statiq) without downloading their separate apps.",
+    "category": "Technology"
+  },
+  {
+    "id": "227",
+    "keywords": ["schedule", "later", "delay", "timer"],
+    "question": "Can I schedule a charge to start later?",
+    "answer": "Public chargers typically start immediately. However, you can use your car's onboard 'Scheduled Charging' setting to control when it accepts power.",
+    "category": "Charging"
+  },
+  {
+    "id": "228",
+    "keywords": ["limit", "soc", "80%", "cutoff"],
+    "question": "Can I set a charging limit (e.g., stop at 80%)?",
+    "answer": "Yes. Most DC chargers allow you to drag a slider in the app to set a max SoC limit (e.g., 80% or 90%) to stop the session automatically.",
+    "category": "Charging"
+  },
+  {
+    "id": "229",
+    "keywords": ["amperage", "current", "adjust", "slow down"],
+    "question": "Can I lower the charging current?",
+    "answer": "On AC chargers, yes. Your car usually has a setting to limit AC charging current (e.g., 16A to 10A). DC fast charging is controlled automatically by the car.",
+    "category": "Charging"
+  },
+  {
+    "id": "230",
+    "keywords": ["voltage", "sag", "fluctuation", "error"],
+    "question": "Charging stopped due to 'Voltage Error'.",
+    "answer": "This happens if the grid voltage is unstable (too high or low). The charger cuts off to protect your car. Try again after a few minutes.",
+    "category": "Hardware"
+  },
+  {
+    "id": "231",
+    "keywords": ["grounding", "earthing", "earth", "fault"],
+    "question": "Charger says 'Grounding Fault' or 'Earth Error'.",
+    "answer": "This is a serious safety check. It means the station's earthing is poor. Do NOT attempt to charge here using hacks/bypass adapters. Move to another station.",
+    "category": "Safety"
+  },
+  {
+    "id": "232",
+    "keywords": ["isolation", "insulation", "leakage", "fault"],
+    "question": "My car says 'Isolation Fault'.",
+    "answer": "This implies a current leak in the high-voltage system of the car or charger. It prevents charging to avoid shock. Visit your car service center if this persists.",
+    "category": "Safety"
+  },
+  {
+    "id": "233",
+    "keywords": ["communication", "handshake", "plc", "fail"],
+    "question": "Charging failed at 'Handshake' or 'Initializing'.",
+    "answer": "The car and charger failed to talk. Try unplugging, locking the car, unlocking it, and plugging in again. Ensure the connector is pushed in firmly.",
+    "category": "Troubleshooting"
+  },
+  {
+    "id": "234",
+    "keywords": ["lightning", "storm", "thunder", "safe"],
+    "question": "Is it safe to charge during a lightning storm?",
+    "answer": "Public chargers have surge protection (SPD), but it is generally safer to unplug and wait out a severe lightning storm to protect your car's electronics.",
+    "category": "Safety"
+  },
+  {
+    "id": "235",
+    "keywords": ["flood", "waterlog", "submerged", "puddle"],
+    "question": "The charging station is flooded.",
+    "answer": "Do NOT charge if the water level reaches the cables or the base of the unit. Electricity and standing water are a dangerous combination.",
+    "category": "Safety"
+  },
+  {
+    "id": "236",
+    "keywords": ["insurance", "claim", "damage", "accident"],
+    "question": "Will my car insurance cover charging damage?",
+    "answer": "Comprehensive insurance usually covers fire or electrical damage during charging, but check your specific policy wording for 'EV Charging' clauses.",
+    "category": "Billing"
+  },
+  {
+    "id": "237",
+    "keywords": ["warranty", "battery", "degradation", "void"],
+    "question": "Does fast charging void my battery warranty?",
+    "answer": "No. Manufacturers design EVs to handle fast charging. However, frequent charging to 100% via DC may accelerate degradation over many years.",
+    "category": "Battery Care"
+  },
+  {
+    "id": "238",
+    "keywords": ["second life", "recycle", "green", "battery"],
+    "question": "What happens to old EV batteries?",
+    "answer": "They are often repurposed for stationary grid storage (Second Life) or recycled to recover lithium, cobalt, and nickel. VoltPath partners with certified recyclers.",
+    "category": "Sustainability"
+  },
+  {
+    "id": "239",
+    "keywords": ["carbon", "footprint", "offset", "co2"],
+    "question": "How much CO2 did I save?",
+    "answer": "Check your 'Impact' tab. We calculate CO2 savings by comparing your EV kilometers to a comparable petrol car's emissions.",
+    "category": "Sustainability"
+  },
+  {
+    "id": "240",
+    "keywords": ["branding", "sticker", "logo", "white label"],
+    "question": "Can I put my company logo on the charger?",
+    "answer": "Yes! If you host a charger, you can opt for custom branding. Contact our 'VoltPath Business' team for customization options.",
+    "category": "Business"
+  },
+  {
+    "id": "241",
+    "keywords": ["beta", "test", "early access", "features"],
+    "question": "How do I join the VoltPath Beta program?",
+    "answer": "Go to Settings > About > Join Beta. You'll get early access to new features like 'Plug & Charge' and 'Smart Route Planning' before everyone else.",
+    "category": "App Usage"
+  },
+  {
+    "id": "242",
+    "keywords": ["bug", "glitch", "error", "bounty"],
+    "question": "I found a bug in the app.",
+    "answer": "Please report it via 'Shake to Report' or in the Help section. We offer small rewards (VoltPoints) for verified bug reports!",
+    "category": "Support"
+  },
+  {
+    "id": "243",
+    "keywords": ["api", "developer", "integrate", "data"],
+    "question": "Do you have an API for developers?",
+    "answer": "Yes, we offer an Open API for map data and station status. Visit developer.voltpath.com to request an API key.",
+    "category": "Technology"
+  },
+  {
+    "id": "244",
+    "keywords": ["career", "job", "hiring", "work"],
+    "question": "Are you hiring?",
+    "answer": "We are always looking for electric talent! Check our LinkedIn page or the 'Careers' section on our website for open roles.",
+    "category": "Company"
+  },
+  {
+    "id": "245",
+    "keywords": ["community", "forum", "chat", "group"],
+    "question": "Is there a community forum?",
+    "answer": "Yes. Join the 'VoltClub' in the app to discuss EV tips, share route advice, and meet other EV owners in your city.",
+    "category": "Community"
+  },
+  {
+    "id": "246",
+    "keywords": ["badge", "rank", "leaderboard", "gamification"],
+    "question": "How do I earn the 'Super Charger' badge?",
+    "answer": "Badges are awarded for milestones like '1000 Green KMs', 'First Interstate Trip', or 'Top Reviewer'. Check your Profile to see your collection.",
+    "category": "Community"
+  },
+  {
+    "id": "247",
+    "keywords": ["referral", "limit", "max", "cap"],
+    "question": "Is there a limit to referral rewards?",
+    "answer": "You can refer up to 50 friends per year. After that, you still help the planet, but won't receive additional monetary credits.",
+    "category": "Billing"
+  },
+  {
+    "id": "248",
+    "keywords": ["stack", "coupon", "multiple", "promo"],
+    "question": "Can I use two coupons at once?",
+    "answer": "No. Only one promo code can be applied per charging session. The app will automatically select the best available offer for you.",
+    "category": "Billing"
+  },
+  {
+    "id": "249",
+    "keywords": ["chargeback", "dispute", "bank", "fraud"],
+    "question": "I raised a chargeback with my bank.",
+    "answer": "Raising a chargeback freezes your VoltPath account. Please contact support to resolve billing issues directly to avoid account suspension.",
+    "category": "Billing"
+  },
+  {
+    "id": "250",
+    "keywords": ["upi", "limit", "fail", "bank server"],
+    "question": "My UPI payment failed repeatedly.",
+    "answer": "This is often due to bank server downtime. Please try a different payment mode like Credit Card or Net Banking, or try again in 15 minutes.",
+    "category": "Billing"
+  },
+  {
+    "id": "251",
+    "keywords": ["double", "deduct", "twice", "payment"],
+    "question": "I was charged twice for the same session.",
+    "answer": "This is a rare gateway error. The duplicate transaction is usually auto-reversed by your bank within 24-48 hours. If not, send us the Transaction IDs.",
+    "category": "Billing"
+  },
+  {
+    "id": "252",
+    "keywords": ["pending", "processing", "stuck", "yellow"],
+    "question": "My payment status is 'Pending'.",
+    "answer": "This means the bank hasn't confirmed success or failure yet. Wait for 10 minutes. If it fails, money will be refunded automatically.",
+    "category": "Billing"
+  },
+  {
+    "id": "253",
+    "keywords": ["initializing", "spinning", "stuck", "screen"],
+    "question": "The app is stuck on 'Initializing Charging'.",
+    "answer": "If it spins for more than 60 seconds, the communication timed out. Unplug, force-close the app, and try starting a new session.",
+    "category": "Troubleshooting"
+  },
+  {
+    "id": "254",
+    "keywords": ["finishing", "stopping", "hang", "end"],
+    "question": "The session is stuck on 'Finishing'.",
+    "answer": "Don't worry, charging has likely stopped physically. You can safely unplug if the gun is unlocked. The app status will update shortly.",
+    "category": "Troubleshooting"
+  },
+  {
+    "id": "255",
+    "keywords": ["misuse", "emergency button", "penalty", "fine"],
+    "question": "Is there a penalty for pressing the Emergency Button?",
+    "answer": "Misusing the Emergency Stop for non-emergencies (like a regular stop) may incur a technician reset fee, as it requires manual intervention to fix the charger.",
+    "category": "Safety"
+  },
+  {
+    "id": "256",
+    "keywords": ["nfc", "tap", "phone", "card"],
+    "question": "Can I tap my phone (NFC) to start charging?",
+    "answer": "Some newer chargers support NFC tap. If you see the NFC symbol, you can tap your phone (with VoltPath wallet enabled) to authenticate.",
+    "category": "Getting Started"
+  },
+  {
+    "id": "257",
+    "keywords": ["rfid location", "reader", "where", "scan"],
+    "question": "Where do I tap my RFID card?",
+    "answer": "Look for the WiFi-like symbol on the charger face. It is usually located below the screen or near the connector holster.",
+    "category": "Getting Started"
+  },
+  {
+    "id": "258",
+    "keywords": ["led", "color", "green", "blue", "red"],
+    "question": "What do the LED colors mean?",
+    "answer": "Typically: Green = Available, Blue = Charging, Red = Fault/Error, Flashing = Authenticating. Check the sticker on the charger for specific codes.",
+    "category": "Hardware"
+  },
+  {
+    "id": "259",
+    "keywords": ["mg", "zs ev", "compat", "charging"],
+    "question": "Any specific tips for MG ZS EV?",
+    "answer": "The ZS EV charge port is behind the front grille logo. Press the logo to open. It supports max 75kW DC charging.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "260",
+    "keywords": ["hyundai", "kona", "ioniq", "front"],
+    "question": "Where is the port on Hyundai Kona/Ioniq 5?",
+    "answer": "Kona: Front bumper (driver side). Ioniq 5: Rear right side (motorized flap). Ioniq 5 supports ultra-fast 800V charging.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "261",
+    "keywords": ["byd", "atto 3", "blade", "lfp"],
+    "question": "Charging tips for BYD Atto 3?",
+    "answer": "BYD uses LFP batteries which love being charged to 100%. The charging port is on the front right wing. It handles DC charging up to 80kW.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "262",
+    "keywords": ["tiago", "tigor", "slow", "ccs"],
+    "question": "Can Tata Tiago/Tigor EV use fast charging?",
+    "answer": "Yes, they use CCS2. However, their max DC charging speed is capped around 25kW, so using a 150kW charger won't make it faster.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "263",
+    "keywords": ["mahindra", "xuv400", "el pro", "charger"],
+    "question": "Charging info for Mahindra XUV400?",
+    "answer": "The port is on the front left fender. Ensure the car is in 'P' (Park) and unlocked to initiate the handshake successfully.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "264",
+    "keywords": ["citroen", "ec3", "air cooling", "heat"],
+    "question": "Citroen eC3 charging speed issues?",
+    "answer": "The eC3 has an air-cooled battery. In very hot weather or after long drives, DC charging speed may drop significantly to protect the battery.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "265",
+    "keywords": ["volvo", "xc40", "c40", "recharge"],
+    "question": "Volvo XC40 Recharge charging tips?",
+    "answer": "Volvo recommends setting the max charge limit to 90% for daily use. The port is on the rear left. It supports up to 150kW DC.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "266",
+    "keywords": ["bmw", "ix1", "i4", "adapter"],
+    "question": "Does BMW require a special adapter?",
+    "answer": "No, BMW EVs in India use standard CCS2. The i4 supports up to 205kW DC charging. The port is typically on the rear right.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "267",
+    "keywords": ["mercedes", "eqb", "eqs", "plug and charge"],
+    "question": "Mercedes EQ series charging features?",
+    "answer": "Mercedes EQ models often support 'Plug & Charge' on compatible networks. The EQS supports 200kW DC charging for very fast stops.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "268",
+    "keywords": ["audi", "etron", "dual port", "ac"],
+    "question": "Does Audi e-tron have two ports?",
+    "answer": "Yes, some e-tron models have ports on both sides! The driver side usually has DC+AC, while the passenger side is AC only.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "269",
+    "keywords": ["scooter", "ola", "s1", "hypercharger"],
+    "question": "Can I charge my Ola S1 Pro here?",
+    "answer": "Only at stations marked 'Ola Hypercharger' or standard 15A AC sockets (using your portable cable). You cannot use CCS2 DC guns for scooters.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "270",
+    "keywords": ["ather", "grid", "connector", "proprietary"],
+    "question": "Is this an Ather Grid point?",
+    "answer": "Ather uses a proprietary connector. Filter the map for 'Ather Grid' to find compatible fast chargers for your 450X/Rizta.",
+    "category": "Vehicle Specific"
+  },
+  {
+    "id": "271",
+    "keywords": ["security guard", "safe", "alone", "night"],
+    "question": "Is there a security guard on site?",
+    "answer": "Look for the 'Security Guard' icon. These stations have personnel present, which is recommended if you are charging alone at night.",
+    "category": "Safety"
+  },
+  {
+    "id": "272",
+    "keywords": ["kids", "play", "area", "park"],
+    "question": "Is there a play area for kids?",
+    "answer": "Some highway charging hubs offer children's play areas. Check the 'Amenities' list for the 'Playground' icon.",
+    "category": "App Usage"
+  },
+  {
+    "id": "273",
+    "keywords": ["pet", "dog", "walk", "park"],
+    "question": "Where can I walk my dog while charging?",
+    "answer": "Many highway stations have designated pet relief areas. Please remember to clean up after your pet to keep the station clean.",
+    "category": "App Usage"
+  },
+  {
+    "id": "274",
+    "keywords": ["shopping", "mall", "retail", "buy"],
+    "question": "Is there shopping nearby?",
+    "answer": "Yes, stations located at Malls or Shopping Centers are marked with a 'Shopping Bag' icon. Perfect for charging while you shop!",
+    "category": "App Usage"
+  },
+  {
+    "id": "275",
+    "keywords": ["cinema", "movie", "theater", "film"],
+    "question": "Can I watch a movie while charging?",
+    "answer": "If the charger is at a Cinema complex, yes! A typical movie (2-3 hours) is perfect for a full AC Slow Charge.",
+    "category": "App Usage"
+  },
+  {
+    "id": "276",
+    "keywords": ["hotel", "stay", "overnight", "room"],
+    "question": "Can I book a hotel room from the app?",
+    "answer": "Not directly, but we show 'EV Friendly Hotels' on the map. These hotels offer overnight charging so you wake up with 100% battery.",
+    "category": "App Usage"
+  },
+  {
+    "id": "277",
+    "keywords": ["hospital", "medical", "clinic", "emergency"],
+    "question": "Are there chargers at hospitals?",
+    "answer": "Yes, many hospitals are installing chargers. Filter by 'Public Facility' to find them. Useful for doctors or visitors.",
+    "category": "App Usage"
+  },
+  {
+    "id": "278",
+    "keywords": ["airport", "fly", "parking", "long term"],
+    "question": "Can I leave my car charging at the airport?",
+    "answer": "Only in designated 'Long Term EV Parking' zones. Do not leave it at a Fast Charger (DC) as idle fees will be huge.",
+    "category": "App Usage"
+  },
+  {
+    "id": "279",
+    "keywords": ["office", "work", "corporate", "campus"],
+    "question": "Can I charge at my office?",
+    "answer": "If your office has partnered with VoltPath, you will see 'Workplace' chargers in the app. You may need an employee code to access them.",
+    "category": "App Usage"
+  },
+  {
+    "id": "280",
+    "keywords": ["apartment", "residential", "flat", "society"],
+    "question": "Can I install a shared charger in my apartment?",
+    "answer": "Yes! VoltPath offers 'Community Charger' solutions for housing societies. Contact us to set up a shared billing system for residents.",
+    "category": "Business"
+  },
+  {
+    "id": "281",
+    "keywords": ["land", "rent", "lease", "host"],
+    "question": "I have land. Can I host a charging station?",
+    "answer": "Yes! You can earn rent or revenue share. Visit the 'Partner With Us' page to submit your property details for evaluation.",
+    "category": "Business"
+  },
+  {
+    "id": "282",
+    "keywords": ["franchise", "invest", "business", "profit"],
+    "question": "Is there a franchise model?",
+    "answer": "Yes, VoltPath offers a FOCO (Franchise Owned Company Operated) model. You invest in the hardware, and we manage the operations.",
+    "category": "Business"
+  },
+  {
+    "id": "283",
+    "keywords": ["advertising", "ads", "screen", "media"],
+    "question": "Can I advertise on the charger screens?",
+    "answer": "Yes, the large screens on DC chargers support digital OOH advertising. Contact our media team for ad rates and slots.",
+    "category": "Business"
+  },
+  {
+    "id": "284",
+    "keywords": ["roi", "return", "earn", "money"],
+    "question": "What is the ROI for a charging station?",
+    "answer": "ROI depends on utilization. A busy highway location can break even in 2-3 years. Slow urban chargers take longer but cost less to install.",
+    "category": "Business"
+  },
+  {
+    "id": "285",
+    "keywords": ["permit", "license", "legal", "govt"],
+    "question": "Do I need a license to install a public charger?",
+    "answer": "In India, EV charging is a de-licensed activity. You do not need a special license to sell power for EVs, but you need a sanctioned electrical load.",
+    "category": "Business"
+  },
+  {
+    "id": "286",
+    "keywords": ["subsidy", "fame", "govt", "grant"],
+    "question": "Are there subsidies for installing chargers?",
+    "answer": "State EV policies vary. Some states offer a capital subsidy (up to 25%) on equipment for the first few hundred chargers. Check your local state policy.",
+    "category": "Business"
+  },
+  {
+    "id": "287",
+    "keywords": ["load", "sanction", "electricity", "connection"],
+    "question": "How much power load do I need?",
+    "answer": "For a DC Fast Charger (60kW), you typically need a 70kW+ connection. For a slow AC charger, a standard 7kW single-phase connection works.",
+    "category": "Business"
+  },
+  {
+    "id": "288",
+    "keywords": ["transformer", "dt", "grid", "infra"],
+    "question": "Do I need a separate transformer?",
+    "answer": "For high-power stations (above 100kW total load), a dedicated distribution transformer (DT) is usually required by the DISCOM.",
+    "category": "Business"
+  },
+  {
+    "id": "289",
+    "keywords": ["billing", "software", "cms", "saas"],
+    "question": "Can I use VoltPath software on my own charger?",
+    "answer": "Yes! We offer our CMS (Charger Management System) as a SaaS product. You can onboard your existing hardware onto the VoltPath network.",
+    "category": "Business"
+  },
+  {
+    "id": "290",
+    "keywords": ["white label", "custom app", "brand"],
+    "question": "Can I get a white-label app for my brand?",
+    "answer": "Yes, we build custom charging apps for Fleet Operators and Real Estate developers powered by the VoltPath backend.",
+    "category": "Business"
+  },
+  {
+    "id": "291",
+    "keywords": ["gdpr", "data", "privacy", "protection"],
+    "question": "Is my data safe with VoltPath?",
+    "answer": "Absolutely. We comply with global data privacy standards. Your location and payment data are encrypted and never sold to third parties.",
+    "category": "Account"
+  },
+  {
+    "id": "292",
+    "keywords": ["delete", "erase", "forget", "remove data"],
+    "question": "How do I download my personal data?",
+    "answer": "Go to Settings > Privacy > Request Data. We will email you a zip file containing your session history and account details within 48 hours.",
+    "category": "Account"
+  },
+  {
+    "id": "293",
+    "keywords": ["currency", "inr", "usd", "forex"],
+    "question": "Can I pay with an international credit card?",
+    "answer": "Yes, we accept Visa/Mastercard from anywhere. However, all transactions are processed in INR (Indian Rupees).",
+    "category": "Billing"
+  },
+  {
+    "id": "294",
+    "keywords": ["language", "support", "regional", "tamil", "telugu"],
+    "question": "When will you add Telugu/Kannada support?",
+    "answer": "We are working on it! We plan to support all major regional Indian languages by the end of this year.",
+    "category": "App Usage"
+  },
+  {
+    "id": "295",
+    "keywords": ["color blind", "vision", "assist", "red green"],
+    "question": "Is there a Color Blind mode?",
+    "answer": "Yes. Enable 'High Contrast Mode' in settings. It changes the Red/Green status indicators to Blue/Orange patterns for better visibility.",
+    "category": "App Usage"
+  },
+  {
+    "id": "296",
+    "keywords": ["haptic", "vibrate", "feedback", "touch"],
+    "question": "Can I disable vibration feedback?",
+    "answer": "Yes. Go to Settings > Sound & Haptics and toggle off 'Vibration on Touch'.",
+    "category": "App Usage"
+  },
+  {
+    "id": "297",
+    "keywords": ["widget", "home screen", "ios", "android"],
+    "question": "Does VoltPath have a home screen widget?",
+    "answer": "Yes! Add our widget to your home screen to see the nearest charger and your wallet balance without opening the app.",
+    "category": "App Usage"
+  },
+  {
+    "id": "298",
+    "keywords": ["offline", "maps", "download", "remote"],
+    "question": "Can I download offline maps?",
+    "answer": "Currently, we rely on Google Maps/Mapbox which support offline areas. We recommend downloading your region in Google Maps for backup.",
+    "category": "App Usage"
+  },
+  {
+    "id": "299",
+    "keywords": ["roadside assistance", "rsa", "breakdown", "tow"],
+    "question": "Do you offer Roadside Assistance (RSA)?",
+    "answer": "We partner with RSA providers. If you run out of charge, use the 'SOS' button in the app to request a tow truck to the nearest charger.",
+    "category": "Support"
+  },
+  {
+    "id": "300",
+    "keywords": ["feedback", "suggestion", "idea", "improve"],
+    "question": "I have an idea for a new feature!",
+    "answer": "We love user feedback! Please submit your ideas via the 'Feature Request' board in the Help section. Users vote on the best ideas!",
+    "category": "Community"
+  }
+]

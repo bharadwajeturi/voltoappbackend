@@ -1,7 +1,8 @@
 /**
- * Google Places Fetcher (Cost-Optimized v4.3)
+ * Google Places Fetcher (Cost-Optimized v4.4)
  * Strategy: "Cheap Discovery"
  * Use Field Masking to get ID + Location for cheap.
+ * 🟢 UPDATE: Blocks 2-Wheeler Stations (Ather, Ola, Hero)
  */
 
 const axios = require('axios');
@@ -16,14 +17,13 @@ const BRAND_MAP = {
     'zeon': 'Zeon Charging',
     'jio-bp': 'Jio-bp Pulse',
     'shell': 'Shell Recharge',
-    'ather': 'Ather Grid',
-    'ola': 'Ola Hypercharger'
+    // Removed Ather/Ola from map because we filter them out anyway
 };
 
 async function fetchStations(lat, lng, radiusMeters = 50000) {
   if (!lat || !lng) return [];
 
-  // 🟢 1. Build Text Query (More effective/cheaper than Nearby Search for EV)
+  // 1. Build Text Query
   const textQuery = "EV Charging Station";
 
   try {
@@ -45,7 +45,6 @@ async function fetchStations(lat, lng, radiusMeters = 50000) {
                      'Content-Type': 'application/json',
                      'X-Goog-Api-Key': config.keys.google,
                      // 💰 FIELD MASKING: The Money Saver
-                     // Only fetch what we need to identify the station.
                      'X-Goog-FieldMask': 'places.id,places.location,places.displayName,places.types,places.formattedAddress'
                  },
                  timeout: 8000
@@ -57,9 +56,13 @@ async function fetchStations(lat, lng, radiusMeters = 50000) {
 
     const stations = results.map(place => {
       const name = place.displayName?.text || 'Unknown Station';
-      
+      const address = place.formattedAddress || "";
+      const types = place.types || [];
+
       // 🟢 COST FILTER: Discard 2-Wheeler Stations immediately
-      if (name.match(/scooter|bike|2w|two wheeler/i)) return null;
+      // This prevents us from saving useless data or routing cars to scooter plugs.
+      if (name.match(/ather|ola hypercharger|hero electric|vida|scooter|bike|2w|two wheeler/i)) return null;
+      if (address.match(/ather|ola hypercharger|hero electric|vida|scooter|bike|2w|two wheeler/i)) return null;
 
       // Operator Cleanup
       let operator = 'Google Places';
@@ -72,14 +75,14 @@ async function fetchStations(lat, lng, radiusMeters = 50000) {
         name: name,
         lat: place.location?.latitude,
         lng: place.location?.longitude,
-        address: place.formatted_address || place.vicinity || "Address Unavailable",    
-         operator: operator,
+        address: address || "Address Unavailable",    
+        operator: operator,
         
         // 🟢 Power is 0 for now (Will be fixed by Brand Heuristic in DB)
         powerkw: 0, 
         connectorTypes: ['Unknown'],
         trustscore: 70, // Base Google Trust
-        amenities: place.types || [],
+        amenities: types,
         externalId: place.id,
         source: 'google',
       };

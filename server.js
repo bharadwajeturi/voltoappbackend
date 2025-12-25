@@ -10,13 +10,19 @@ const stationRoutes = require('./src/routes/stationRoutes');
 const vehicleRoutes = require('./src/routes/vehicleRoutes'); // 🟢 Imported
 const rateLimiter = require('./src/utils/rateLimiter');
 
+const aiRoutes = require('./src/routes/ai.routes');
+const supportRoutes = require('./src/routes/support.routes');
+
 dotenv.config();
 
-const app = express();
+const app = express();  
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+app.use('/api/ai', aiRoutes);
+app.use('/api/support', supportRoutes);
 
 // 2. RATE LIMITER MIDDLEWARE
 app.use('/api', async (req, res, next) => {
