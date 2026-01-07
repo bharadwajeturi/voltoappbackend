@@ -9,7 +9,11 @@ exports.planTrip = async (req, res) => {
 
         // 1. Run Math Router
         const routeResult = await batteryRouter.planRoute(
-            start, end, [], carConfig, 100, 15, 80, [], req.db, userStrategy
+            start, 
+            end, 
+            waypoints || [], // <--- FIX: Use the actual waypoints
+            carConfig, 
+            100, 15, 80, [], req.db, userStrategy
         );
 
         // 2. Run AI Narrator (With Default Fallback)

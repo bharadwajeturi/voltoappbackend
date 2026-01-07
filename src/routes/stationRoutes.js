@@ -1,6 +1,9 @@
 /**
  * VOLTPATH BACKEND - ROUTE ORCHESTRATOR
  * STATUS: FIXED (Polyline Map + Lazy Loading + Optimization)
+ * UPDATES: 
+ * - Integrated 3-Tier Logging (Analytics, System)
+ * - Added OCM/OSM Enrichment Logic (Power/Amenities)
  */
 
 const express = require('express');
@@ -13,11 +16,16 @@ const { fetchAmenitiesForPoint } = require('../fetchers/googleAmenityFetcher');
 const { filterAmenitiesByETA } = require('../utils/timeBasedAmenities'); 
 const { planRoute } = require('../services/batteryRouter'); 
 const { validateRequired } = require('../utils/errorHandler');
-const { fetchStationSpecs } = require('../fetchers/googleStationEnricher');
+
+// 🟢 NEW: Imports for Logging & Enrichment
+const { logAnalytics, systemLogger } = require('../utils/logger');
+const { fetchStationDetails } = require('../fetchers/ocmFetcher'); // OCM for Power/Connectors
+const fetchRestaurantsForArea = require('../fetchers/osmFetcher'); // OSM for Amenities
 
 // 🟢 NEW: Dedicated Endpoint for Lazy Loading Amenities
 // Call this when user clicks a station marker
 router.get('/station/amenities', async (req, res) => {
+    const reqId = req.reqId; // Trace ID
     try {
         const { stationId, lat, lng } = req.query;
         
@@ -37,17 +45,19 @@ router.get('/station/amenities', async (req, res) => {
         
         let amenities = dbResult.rows;
 
-        // 2. If Empty, Fetch Live
+        // 2. If Empty, Fetch Live (Fallback)
         if (amenities.length === 0) {
-            console.log(`⚡ [Lazy Load] Fetching amenities for ${stationId}...`);
+            systemLogger.debug(`[Lazy Load] Fetching amenities for ${stationId}`, { reqId, label: 'LAZY_LOAD' });
             try {
+                // Use OSM (Cheap) or Google (Premium) based on availability
+                // Current strategy: Check OSM first via route enrichment, this is fallback
                 const fetched = await fetchAmenitiesForPoint(parseFloat(lat), parseFloat(lng));
                 if (fetched.length > 0) {
                     await savePremiumAmenities(stationId, fetched, 'lazy_load');
                     amenities = fetched; // Use fetched data
                 }
             } catch (e) {
-                console.error("Lazy fetch failed:", e.message);
+                systemLogger.error(`Lazy fetch failed: ${e.message}`, { reqId, label: 'LAZY_LOAD' });
             }
         }
 
@@ -55,10 +65,13 @@ router.get('/station/amenities', async (req, res) => {
         const eta = new Date(); 
         const sorted = filterAmenitiesByETA(amenities, eta);
 
+        // Log View Event
+        logAnalytics(db.pool, 'guest', 'VIEW_STATION', 'RoutePlanner', { stationId });
+
         res.json(sorted);
 
     } catch (e) {
-        console.error("Amenity API Error:", e.message);
+        systemLogger.error(`Amenity API Error: ${e.message}`, { reqId: req.reqId, label: 'API_ERROR' });
         res.status(500).json([]);
     }
 });
@@ -80,7 +93,7 @@ async function savePremiumAmenities(stationId, amenities, source) {
             `, [stationId, a.name, a.type || 'premium']);
         }
     } catch (e) {
-        console.error("Amenity save failed:", e.message); 
+        systemLogger.error(`Amenity save failed: ${e.message}`, { label: 'DB_WRITE' }); 
     }
 }
 
@@ -107,30 +120,6 @@ function applyBrandLogic(stationName, specs) {
     return { powerkw: newPower, connectors: newConnectors };
 }
 
-// 🟢 Helper to update Station Specs
-async function updateStationSpecs(stationId, specs, stationName) {
-    const { db: pool } = require('../../data_aggregator');
-    const enhancedSpecs = applyBrandLogic(stationName, specs);
-    const validConnectors = (enhancedSpecs.connectors || [])
-        .filter(c => c && c !== 'Unknown' && c.trim() !== '' && c !== '{Unknown}');
-
-    if (enhancedSpecs.powerkw <= 0 && validConnectors.length === 0) return;
-
-    try {
-        const typeStr = `{${validConnectors.map(c => `"${c}"`).join(',')}}`;
-        console.log(`✨ [Enricher] Updating ${stationName} -> ${enhancedSpecs.powerkw}kW`);
-
-        await pool.query(`
-            UPDATE stationsmaster 
-            SET powerkw = GREATEST(powerkw, $1), 
-                connectortypes = $2::text[], 
-                lastupdatedat = NOW()
-            WHERE id = $3
-        `, [enhancedSpecs.powerkw, typeStr, stationId]);
-        
-    } catch (e) { console.error("Spec update failed:", e.message); }
-}
-
 // ... [Autocomplete, Nearby, Places Details Routes] ...
 router.get('/places/autocomplete', async (req, res) => {
     try {
@@ -149,6 +138,10 @@ router.get('/nearby', async (req, res) => {
         if (!lat || !lng) return res.status(400).json({ error: "Missing lat/lng" });
         const radius = parseInt(r) * 1000 || 5000; 
         const point = { latitude: parseFloat(lat), longitude: parseFloat(lng) };
+        
+        // Log this action
+        logAnalytics(db.pool, 'guest', 'SEARCH_NEARBY', 'NearMe', { lat, lng, radius });
+        
         aggregator.processRouteTiles([point]).catch(err => console.error("Bg update failed", err.message));
         const stations = await db.findNearbyStations(point.latitude, point.longitude, radius);
         res.json(stations);
@@ -169,17 +162,26 @@ router.get('/places/details', async (req, res) => {
 
 // 🟢 THE CORE: Plan Route
 router.post('/plan-route', async (req, res) => {
+    const reqId = req.reqId; // From middleware
     try {
         const { 
             start, end, waypoints = [], 
             currentSOC, minBufferSOC, batteryKwh, realRange, maxChargeKw, 
             strategy, isDestinationChargerAvailable = false,
-            departureTime 
+            departureTime, userId, carModel
         } = req.body;
 
         validateRequired(req.body, ['start', 'end', 'batteryKwh', 'realRange', 'maxChargeKw']);
         
-        console.log(`\n🚀 [API] New Trip Request: ${start.name} -> ${end.name}`);
+        // 🟢 ANALYTICS: Track Search
+        logAnalytics(db.pool, userId, 'SEARCH', 'SmartPlanner', { 
+            from: start.name, 
+            to: end.name,
+            battery: currentSOC,
+            car: { kwh: batteryKwh, range: realRange }
+        });
+        
+        systemLogger.info(`Route Request: ${start.name} -> ${end.name}`, { reqId, label: 'ROUTE_PLAN' });
 
         // 1. Parse Departure Time
         let tripStartTime = new Date(); 
@@ -200,9 +202,14 @@ router.post('/plan-route', async (req, res) => {
             capacity: parseFloat(batteryKwh),
             efficiency: parseFloat(batteryKwh) / parseFloat(realRange),
             maxChargeRate: parseFloat(maxChargeKw) || 30,
-            plugType: 'CCS2'
+            plugType: 'CCS2',
+            model: carModel || 'EV'
         };
         const startSOCNum = parseFloat(currentSOC) || 100;
+
+        // 🟢 FIX: Use Dynamic Buffer from Frontend if provided, else defaults
+        const bufferFast = minBufferSOC ? parseFloat(minBufferSOC) : 10;
+        const bufferSlow = minBufferSOC ? parseFloat(minBufferSOC) : 25;
 
         // 2. Google Directions Call
         let waypointsParam = "";
@@ -220,7 +227,6 @@ router.post('/plan-route', async (req, res) => {
         const overviewPolyline = routeData.overview_polyline.points; // Encoded String
         const totalDistanceMeters = routeData.legs.reduce((sum, leg) => sum + leg.distance.value, 0);
         
-        // 🟢 FIX 1: Decode Polyline for Frontend
         // Use mapbox/polyline to convert string -> array of {latitude, longitude}
         const decodedPoints = polyline.decode(overviewPolyline).map(p => ({ latitude: p[0], longitude: p[1] }));
 
@@ -236,7 +242,7 @@ router.post('/plan-route', async (req, res) => {
 
         await aggregator.processRouteTiles(decodedPoints);
 
-        console.log(`⚡ Calculating FAST & SLOW routes starting at ${tripStartTime.toLocaleTimeString()}...`);
+        systemLogger.debug('Calculating FAST & SLOW routes...', { reqId, label: 'ROUTE_PLAN' });
 
         // 4. Pass Time & Leg Configs to Router
         const [fastResult, slowResult] = await Promise.all([
@@ -252,15 +258,16 @@ router.post('/plan-route', async (req, res) => {
             )
         ]);
 
-        // Enrich with Amenities (Optimized)
-        const enrichedFastStops = await enrichStops(fastResult.plannedStops, tripStartTime);
-        const enrichedSlowStops = await enrichStops(slowResult.plannedStops, tripStartTime);
+        // 🟢 NEW: Enrich with OCM (Power) & OSM (Amenities)
+        const enrichedFastStops = await enrichStops(fastResult.plannedStops, tripStartTime, reqId);
+        const enrichedSlowStops = await enrichStops(slowResult.plannedStops, tripStartTime, reqId);
 
         res.json({
+            success: true,
             tripId: `trip_${Date.now()}`,
             meta: {
-                routePolyline: overviewPolyline, // Encoded String (Backup)
-                routePath: decodedPoints,        // 🟢 CRITICAL: This was missing in your response!
+                routePolyline: overviewPolyline,
+                routePath: decodedPoints,
                 totalDistance: totalDistanceMeters,
                 startName: start.name,
                 endName: end.name,
@@ -273,40 +280,70 @@ router.post('/plan-route', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ Route Error:", error.message);
+        systemLogger.error(`Route Error: ${error.message}`, { reqId, label: 'ROUTE_PLAN' });
         res.status(500).json({ error: error.message });
     }
 });
 
-// 🟢 FIX 2: Optimized Enricher (Checks DB First)
-async function enrichStops(stops, startTime) {
+// 🟢 UPDATED: Enrichment Logic (OCM Power + OSM Amenities)
+async function enrichStops(stops, startTime, reqId) {
     if (!stops || stops.length === 0) return [];
 
     return Promise.all(stops.map(async (stop) => {
-        const stationId = stop.station.id || "";
+        const station = stop.station;
+        const stationId = station.id || "";
+        
+        // Filter out waypoints
         const isRealStation = stationId && 
                               !stationId.toString().startsWith('wp_') && 
                               !stationId.toString().startsWith('trip_');
 
         if (isRealStation) {
             try {
+                // 1. OCM Enrichment (Power & Connectors)
+                // If ID is OCM-based, check for better details
+                if (stationId.toString().startsWith('ocm_')) {
+                    const techSpecs = await fetchStationDetails(stationId);
+                    if (techSpecs) {
+                        // Update Memory Object
+                        station.powerkw = techSpecs.powerkw;
+                        station.connectorTypes = techSpecs.connectors;
+                        
+                        // Update Database (Fire & Forget)
+                        const typeStr = `{${techSpecs.connectors.map(c => `"${c}"`).join(',')}}`;
+                        db.pool.query(
+                            `UPDATE stationsmaster SET powerkw=$1, connectortypes=$2::text[] WHERE id=$3`,
+                            [techSpecs.powerkw, typeStr, stationId]
+                        ).catch(e => systemLogger.error(`DB Update Spec Failed: ${e.message}`, { reqId, label: 'ENRICHER' }));
+                    }
+                }
+
+                // 2. OSM Enrichment (Amenities)
                 // Check DB for Amenities First
                 const dbRes = await db.pool.query(
                     `SELECT count(*) FROM station_amenities WHERE station_id = $1`, 
                     [stationId]
                 );
                 
-                // Only Fetch from Google if DB is empty
+                // If missing, fetch from OSM and Save
                 if (parseInt(dbRes.rows[0].count) === 0) {
-                    fetchAmenitiesForPoint(stop.station.lat, stop.station.lng, stationId)
-                        .then(fetched => {
-                            if(fetched.length > 0) savePremiumAmenities(stationId, fetched, 'lazy');
-                        })
-                        .catch(() => {});
+                    const amenities = await fetchRestaurantsForArea(station.lat, station.lng);
+                    if (amenities && amenities.length > 0) {
+                        for (const a of amenities) {
+                            await db.pool.query(`
+                                INSERT INTO station_amenities (station_id, name, amenity_type, source, distance_m)
+                                VALUES ($1, $2, $3, 'osm', 0)
+                                ON CONFLICT DO NOTHING
+                            `, [stationId, a.name, a.type || 'food']).catch(() => {});
+                        }
+                    }
                 } 
-            } catch (e) {}
+            } catch (e) {
+                systemLogger.error(`Enrichment failed for ${stationId}: ${e.message}`, { reqId, label: 'ENRICHER' });
+            }
         }
 
+        // ETA Calculation
         const arrivalDate = new Date(stop.arrivalTime);
         const diffMs = arrivalDate - startTime;
         const diffMins = Math.round(diffMs / 60000);
@@ -384,19 +421,18 @@ router.post('/verify', async (req, res) => {
         const brokenCount = reports.filter(r => r.status === 'Broken').length;
 
         if (workingCount >= THRESHOLD) {
-            console.log(`🏆 [Consensus] Station ${stationId} is CONFIRMED WORKING`);
+            systemLogger.info(`Station ${stationId} CONFIRMED WORKING`, { label: 'VERIFY' });
             await db.pool.query(`UPDATE stationsmaster SET verified_status = 'Working', trust_score = 95 WHERE id = $1`, [stationId]);
         } 
         else if (brokenCount >= THRESHOLD) {
-            console.log(`⚠️ [Consensus] Station ${stationId} is CONFIRMED BROKEN`);
+            systemLogger.info(`Station ${stationId} CONFIRMED BROKEN`, { label: 'VERIFY' });
             await db.pool.query(`UPDATE stationsmaster SET verified_status = 'Broken', trust_score = 10 WHERE id = $1`, [stationId]);
         }
 
-        console.log(`✅ [Verify] Station ${stationId} updated (Reports: ${reports.length})`);
         res.json({ success: true, message: "Verification saved & consensus checked" });
 
     } catch (e) {
-        console.error("Verification Save Failed:", e.message);
+        systemLogger.error(`Verification Save Failed: ${e.message}`, { label: 'VERIFY' });
         res.status(500).json({ error: e.message });
     }
 });

@@ -1,13 +1,14 @@
 /**
- * BATTERY ROUTER v10.6 (Explicit Tiers & Destination Logic)
- * * * UPDATES:
- * 1. 🟢 Search Tiers: Explicitly searches 5km -> 10km -> 20km -> 50km to generate detailed logs.
- * 2. 🟢 Destination Charging: Confirmed logic handles the toggle correctly.
- * 3. 🟢 Logs: "Failed X km search" logs added as requested.
+ * BATTERY ROUTER v10.8 (Fixed Alternatives)
+ * Updates:
+ * 1. Fixed 'stations is not defined' crash.
+ * 2. Implemented Station Swapping logic in correct scope.
  */
 
 const { getDistanceKm } = require('../utils/distance');
 const { calculateGreenScore } = require('../utils/scoringEngine');
+const { validateBatteryParams } = require('../utils/errorHandler'); 
+const { systemLogger } = require('../utils/logger');
 
 const DEFAULT_SPEED_KMH = 65; 
 const EARTH_RADIUS_KM = 6371;
@@ -61,6 +62,7 @@ function calculateChargeTime(currentSOC, targetSOC, capacity, stationPowerKW, ca
     let totalMinutes = 0;
     let tempSOC = currentSOC;
     
+    // Zone A: Fast Charge (up to 80%)
     if (tempSOC < 80) {
         const targetForZoneA = Math.min(targetSOC, 80);
         const neededPercent = targetForZoneA - tempSOC;
@@ -68,10 +70,12 @@ function calculateChargeTime(currentSOC, targetSOC, capacity, stationPowerKW, ca
         totalMinutes += (kwhNeeded / (effectivePower * efficiency)) * 60;
         tempSOC = targetForZoneA;
     }
+    
+    // Zone B: Tapering (80% to 100%)
     if (tempSOC < targetSOC && tempSOC >= 80) {
         const neededPercent = targetSOC - tempSOC;
         const kwhNeeded = (neededPercent / 100) * capacity;
-        const averageTaperPower = effectivePower * 0.4; 
+        const averageTaperPower = effectivePower * 0.4; // Simulating curve drop
         totalMinutes += (kwhNeeded / (averageTaperPower * efficiency)) * 60;
     }
     return Math.round(totalMinutes);
@@ -83,12 +87,34 @@ async function planRoute(
     routePoints, db, userStrategy = 'FAST', isDestinationChargerAvailable = false, 
     legConfigs = [], tripStartTime = new Date()
 ) {
-    console.log(`\n🧠 [Router] STARTING SIMULATION (v10.6 Tiered Search)`);
+    // 🟢 Log Start
+    if (systemLogger) systemLogger.info(`[Router] STARTING SIMULATION (v10.8) - Strategy: ${userStrategy}`, { label: 'ROUTER' });
+    else console.log(`[Router] STARTING SIMULATION (v10.8)`);
     
+    // 🟢 CRITICAL CRASH FIX: Auto-adjust Max Charge if Start SOC is higher
+    let effectiveMaxCharge = parseFloat(maxCharge) || 80;
+    const startSOCNum = parseFloat(startSOC);
+    
+    if (startSOCNum > effectiveMaxCharge) {
+        const msg = `Start SOC (${startSOCNum}%) > Max Charge (${effectiveMaxCharge}%). Raising limit.`;
+        if (systemLogger) systemLogger.warn(msg, { label: 'ROUTER' });
+        else console.warn(msg);
+        effectiveMaxCharge = startSOCNum;
+    }
+
+    // Validate inputs
+    try {
+        validateBatteryParams(startSOCNum, parseFloat(bufferSOC) || 10, effectiveMaxCharge);
+    } catch (e) {
+        if (systemLogger) systemLogger.error(`[Router Validation] ${e.message}`, { label: 'ROUTER' });
+        else console.error(`[Router Validation] ${e.message}`);
+        throw e;
+    }
+
     const visitedStationIds = new Set(); 
     const allScannedStations = new Map(); 
 
-    let currentSOC = parseFloat(startSOC);
+    let currentSOC = startSOCNum;
     let currentLoc = { lat: start.lat || start.latitude, lng: start.lng || start.longitude };
     let accumulatedTimeMin = 0;
     let totalDistanceTraveled = 0;
@@ -97,8 +123,6 @@ async function planRoute(
     const isFastStrat = userStrategy === 'FAST';
 
     // 🟢 DESTINATION BUFFER LOGIC
-    // If we can charge at destination, we can arrive with low buffer (e.g. 10%).
-    // If NOT, we need enough buffer to find a charger later (e.g. 25%).
     const destBuffer = isDestinationChargerAvailable ? safetyBuffer : (safetyBuffer + 15);
 
     const targetQueue = [
@@ -117,6 +141,7 @@ async function planRoute(
         chargeTime: 0, driveTime: 0, arrivalTime: tripStartTime.toISOString(), isNightStop: false
     }];
 
+    // --- SIMULATION LOOP ---
     for (let leg = 0; leg < 35; leg++) { 
         if (currentTargetIndex >= targetQueue.length) break; 
         const target = targetQueue[currentTargetIndex];
@@ -124,7 +149,7 @@ async function planRoute(
         // 1. Distance & Speed
         const currentLegConfig = legConfigs[currentTargetIndex] || { speedKmh: DEFAULT_SPEED_KMH, distKm: 0 };
         const legSpeed = currentLegConfig.speedKmh || DEFAULT_SPEED_KMH;
-        let distToTarget = isAtExactNode ? currentLegConfig.distKm : getDistanceKm(currentLoc.lat, currentLoc.lng, target.lat, target.lng) * 1.15;
+        const distToTarget = isAtExactNode ? currentLegConfig.distKm : getDistanceKm(currentLoc.lat, currentLoc.lng, target.lat, target.lng) * 1.15;
 
         const kwhToTarget = distToTarget * carConfig.efficiency;
         const dropToTarget = (kwhToTarget / carConfig.capacity) * 100;
@@ -135,7 +160,8 @@ async function planRoute(
 
         // 2. REACHABILITY CHECK
         if (projectedSOC >= target.reqBuffer) {
-            console.log(`✅ Reached ${target.label} (Est: ${projectedSOC.toFixed(1)}%)`);
+            if (systemLogger) systemLogger.debug(`✅ Reached ${target.label} (Est: ${projectedSOC.toFixed(1)}%)`, { label: 'ROUTER' });
+            
             const driveTime = Math.round((distToTarget / legSpeed) * 60);
             accumulatedTimeMin += driveTime;
             const arrivalDate = new Date(tripStartTime.getTime() + (accumulatedTimeMin * 60000));
@@ -143,25 +169,27 @@ async function planRoute(
             let finalTargetSOC = Math.round(projectedSOC);
             let finalChargeTime = 0;
             
-            // 🟢 DESTINATION CHARGING CHECK
+            // Destination/Waypoint Charging Logic
             const canChargeHere = target.type === 'DESTINATION' ? isDestinationChargerAvailable : target.canCharge;
 
             if (canChargeHere) {
-                const limit = target.type === 'DESTINATION' ? 70 : (parseFloat(maxCharge) || 80);
+                const limit = target.type === 'DESTINATION' ? 70 : effectiveMaxCharge;
                 if (projectedSOC < limit) {
                     finalTargetSOC = limit;
                     finalChargeTime = calculateChargeTime(projectedSOC, limit, carConfig.capacity, 7.2, carConfig.maxChargeRate);
                 }
             }
             
-            // Add charge time to total duration (Destination charge is usually excluded from "Travel Time" but included in "Total Trip")
             if (target.type !== 'DESTINATION') accumulatedTimeMin += finalChargeTime;
             
             fullItinerary.push({
                 type: target.type, 
                 station: { 
-                    id: target.place_id || `wp_${currentTargetIndex}`, name: target.name || target.label, 
-                    lat: target.lat, lng: target.lng, address: target.address || target.label, 
+                    id: target.place_id || `wp_${currentTargetIndex}`,
+                     name: target.name || target.label, 
+                    lat: target.lat,
+                     lng: target.lng, 
+                    address: target.address || target.label, 
                     powerkw: canChargeHere ? 7.2 : 0, 
                     connectorTypes: canChargeHere ? ['Type 2'] : [], 
                     source: 'user' 
@@ -172,7 +200,8 @@ async function planRoute(
                 driveTime: driveTime, 
                 chargeTime: finalChargeTime, 
                 arrivalTime: arrivalDate.toISOString(), 
-                isNightStop: isNight
+                isNightStop: isNight,
+                alternatives: [] // No alternatives for user-defined stops
             });
 
             currentLoc = { lat: target.lat, lng: target.lng };
@@ -190,14 +219,13 @@ async function planRoute(
         const idealPoint = getPointAhead(routePoints, currentPolyIndex, offsetKm);
         const idealPolyIndex = findClosestPolylineIndex(routePoints, idealPoint.latitude, idealPoint.longitude);
 
-        console.log(`   🔎 Scanning at ${offsetKm.toFixed(0)}km ahead...`);
+        if (systemLogger) systemLogger.debug(`Scanning at ${offsetKm.toFixed(0)}km ahead...`, { label: 'ROUTER' });
 
         let candidates = { stations: [] };
         let isFallbackMode = false;
         let isDeepScanMode = false;
 
-        // 🟢 TIERED SEARCH LOOP (5km -> 10km -> 20km -> 50km)
-        // We expand the search outward from the Ideal Point until we find something.
+        // TIERED SEARCH LOOP
         const searchTiers = [5000, 10000, 20000, 50000];
         let foundInTier = false;
 
@@ -209,32 +237,34 @@ async function planRoute(
             
             if (candidates.stations && candidates.stations.length > 0) {
                 foundInTier = true;
-                break; // Found something!
+                break;
             } else {
-                console.log(`   ❌ Failed: ${radius/1000}km Search`);
+                if (systemLogger) systemLogger.debug(`❌ Failed: ${radius/1000}km Search`, { label: 'ROUTER' });
             }
         }
 
-        // 3b. Fallback: Fast -> Slow (if tiered FAST search failed)
+        // Fallback: Fast -> Slow
         if (!foundInTier && isFastStrat) {
-            console.log(`   🔄 Retrying: Standard 50km Search (SLOW/ALL)...`);
+            if (systemLogger) systemLogger.warn(`🔄 Retrying: Standard 50km Search (SLOW/ALL)...`, { label: 'ROUTER' });
             candidates = await db.adaptiveSearch(idealPoint.latitude, idealPoint.longitude, Array.from(visitedStationIds), 'SLOW', 50000);
             if (candidates.stations.length > 0) isFallbackMode = true; 
         }
 
-        // 3c. Deep Scan: 100km (Rescue / Backward)
+        // Deep Scan: 100km
         if (!candidates.stations || candidates.stations.length === 0) {
-            console.log(`   ❌ Failed: Standard 50km Search (SLOW). Attempting 100km DEEP SCAN...`);
+            if (systemLogger) systemLogger.warn(`❌ Failed: Standard 50km Search (SLOW). Attempting 100km DEEP SCAN...`, { label: 'ROUTER' });
             candidates = await db.adaptiveSearch(idealPoint.latitude, idealPoint.longitude, Array.from(visitedStationIds), 'SLOW', 100000);
             if (candidates.stations.length > 0) isDeepScanMode = true; 
         }
 
         if (!candidates.stations || candidates.stations.length === 0) { 
-            console.warn("   ❌ CRITICAL: No chargers found even after 100km Deep Scan."); 
+            const failMsg = "❌ CRITICAL: No chargers found even after 100km Deep Scan.";
+            if (systemLogger) systemLogger.error(failMsg, { label: 'ROUTER' });
+            else console.warn(failMsg);
             break; 
         }
 
-        // 4. FILTERING
+        // 4. FILTERING (Geometry & Direction)
         const searchSegmentStart = currentPolyIndex;
         const searchSegmentEnd = Math.min(routePoints.length - 1, idealPolyIndex + 50); 
 
@@ -268,7 +298,7 @@ async function planRoute(
         });
 
         if (validCandidates.length === 0) {
-            console.warn("   🚨 Strict Filter Empty. Relaxing Side-of-Road rules.");
+            if (systemLogger) systemLogger.warn("🚨 Strict Filter Empty. Relaxing Side-of-Road rules.", { label: 'ROUTER' });
             validCandidates = candidates.stations;
             isDeepScanMode = true; 
         }
@@ -281,7 +311,7 @@ async function planRoute(
             if (!allScannedStations.has(stat.id)) allScannedStations.set(stat.id, stat);
         });
 
-        // 5. Score
+        // 5. SCORING
         let bestStation = null;
         let bestScore = -Infinity;
 
@@ -304,8 +334,16 @@ async function planRoute(
             const driveTime = Math.round((bestStation.distanceFromLast / legSpeed) * 60);
             accumulatedTimeMin += driveTime;
             
-            let targetChargeSOC = parseFloat(maxCharge) || 80;
+            // 🟢 FIXED ALTERNATIVES LOGIC
+            // Only calculate alternatives for actual charging stops
+           const alternatives = candidates.stations
+                .filter(s => s.id !== bestStation.id) // Don't show the selected one
+                .sort((a, b) => (parseFloat(b.powerkw) || 0) - (parseFloat(a.powerkw) || 0)) // Show highest power first
+                .slice(0, 15); // Return top 10 options
+
+            let targetChargeSOC = effectiveMaxCharge;
             if (currentTargetIndex === targetQueue.length - 1) { 
+                // Optimized charge for last leg
                 const distToFinal = getDistanceKm(bestStation.lat, bestStation.lng, target.lat, target.lng) * 1.15;
                 const percentNeeded = (distToFinal * carConfig.efficiency / carConfig.capacity) * 100;
                 targetChargeSOC = Math.min(100, Math.max(targetChargeSOC, percentNeeded + target.reqBuffer + 5));
@@ -315,9 +353,17 @@ async function planRoute(
             accumulatedTimeMin += chargeTime;
 
             fullItinerary.push({
-                type: 'CHARGER', station: bestStation, legDistance: bestStation.distanceFromLast, distanceFromLast: bestStation.distanceFromLast, 
-                arrivalSOC: bestStation.arrivalSOC, targetSOC: Math.round(targetChargeSOC), driveTime, chargeTime, 
-                arrivalTime: new Date(tripStartTime.getTime() + (accumulatedTimeMin * 60000)).toISOString(), isNightStop: isNight 
+                type: 'CHARGER', 
+                station: bestStation, 
+                legDistance: bestStation.distanceFromLast, 
+                distanceFromLast: bestStation.distanceFromLast, 
+                arrivalSOC: bestStation.arrivalSOC, 
+                targetSOC: Math.round(targetChargeSOC), 
+                driveTime, 
+                chargeTime, 
+                arrivalTime: new Date(tripStartTime.getTime() + (accumulatedTimeMin * 60000)).toISOString(), 
+                isNightStop: isNight,
+                alternatives: alternatives // 🟢 Added Alternatives Here
             });
 
             currentLoc = { lat: bestStation.lat, lng: bestStation.lng };
@@ -325,13 +371,25 @@ async function planRoute(
             totalDistanceTraveled += bestStation.distanceFromLast;
             isAtExactNode = false; 
         } else {
-            console.warn(`⚠️ No station found. Best Score: ${bestScore}`);
+            const failMsg = `⚠️ No station found. Best Score: ${bestScore}`;
+            if (systemLogger) systemLogger.error(failMsg, { label: 'ROUTER' });
+            else console.warn(failMsg);
             break;
         }
     }
 
-    console.log(`✅ [Router] Complete. Total Stops: ${fullItinerary.length}.`);
-    return { plannedStops: fullItinerary, allCandidates: Array.from(allScannedStations.values()), summary: { totalDistanceKm: totalDistanceTraveled, totalDurationMin: accumulatedTimeMin, finalSOC: currentSOC } };
+    if (systemLogger) systemLogger.info(`✅ [Router] Complete. Total Stops: ${fullItinerary.length}.`, { label: 'ROUTER' });
+    else console.log(`✅ [Router] Complete. Total Stops: ${fullItinerary.length}.`);
+
+    return { 
+        plannedStops: fullItinerary, 
+        allCandidates: Array.from(allScannedStations.values()), 
+        summary: { 
+            totalDistanceKm: totalDistanceTraveled, 
+            totalDurationMin: accumulatedTimeMin, 
+            finalSOC: currentSOC 
+        } 
+    };
 }
 
 module.exports = { planRoute };

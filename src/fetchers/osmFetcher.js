@@ -5,9 +5,12 @@
  * 1. Server Rotation: Uses 3 different free mirrors.
  * 2. Failover: If one fails (429/500), it tries the next one instantly.
  * 3. Timeout: Fails fast (4s) so the user doesn't wait.
+ * 4. Validation: Prevents 400 Bad Request errors from NaN coords.
+ * 5. 🟢 LOGGING: Uses systemLogger for file traces.
  */
 
 const axios = require('axios');
+const { systemLogger, logCost } = require('../utils/logger');
 
 // 🟢 LIST OF FREE OVERPASS MIRRORS
 const SERVERS = [
@@ -21,38 +24,38 @@ const SERVERS = [
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchRestaurantsForArea(lat, lng, radiusMeters = 2000) {
-  if (!lat || !lng) return [];
+  // 🟢 FIX: Strict Input Validation
+  const fLat = parseFloat(lat);
+  const fLng = parseFloat(lng);
+
+  if (isNaN(fLat) || isNaN(fLng)) {
+      if (systemLogger) systemLogger.warn(`[OSM] Invalid Coordinates: ${lat},${lng}. Skipping.`, { label: 'OSM' });
+      return [];
+  }
 
   // 🟢 Reduce radius slightly to 1.5km to be lighter on the API
   const radiusKm = 1.5; 
   const latDelta = radiusKm / 111;
-  const lngDelta = radiusKm / (111 * Math.cos(lat * Math.PI / 180));
+  const lngDelta = radiusKm / (111 * Math.cos(fLat * Math.PI / 180));
 
-  const bbox = `
-    ${lat - latDelta},
-    ${lng - lngDelta},
-    ${lat + latDelta},
-    ${lng + lngDelta}
-  `;
+  // Construct Bounding Box
+  const bbox = `${fLat - latDelta},${fLng - lngDelta},${fLat + latDelta},${fLng + lngDelta}`;
 
-  // Optimized Query: Only essential data
-  const query = `
-    [out:json][timeout:5];
+  // Simple, efficient query for food
+  const query = `[out:json][timeout:4];
     (
-      node["amenity"~"restaurant|cafe|fast_food|food_court"]( ${bbox} );
-      way["amenity"~"restaurant|cafe|fast_food|food_court"]( ${bbox} );
+      node["amenity"~"restaurant|cafe|fast_food"](${bbox});
+      way["amenity"~"restaurant|cafe|fast_food"](${bbox});
     );
-    out center tags;
-  `;
+    out center;`;
 
-  // 🟢 ROTATION LOGIC
   // Try up to 2 different servers before giving up
   for (let i = 0; i < 2; i++) {
       // Pick a random server to distribute load
       const server = SERVERS[Math.floor(Math.random() * SERVERS.length)];
       
       try {
-        console.log(`[OSM] Attempt ${i+1}: Fetching from ${new URL(server).hostname}...`);
+        if (systemLogger) systemLogger.debug(`Attempt ${i+1}: Fetching from ${new URL(server).hostname}...`, { label: 'OSM' });
         
         const res = await axios.post(
           server,
@@ -77,17 +80,17 @@ async function fetchRestaurantsForArea(lat, lng, radiusMeters = 2000) {
           }))
           .filter(r => r.lat && r.lng);
 
-        console.log(`[OSM] ✅ Success: Found ${results.length} amenities.`);
+        if (systemLogger) systemLogger.info(`✅ Success: Found ${results.length} amenities.`, { label: 'OSM' });
         return results;
 
       } catch (err) {
-        console.warn(`[OSM] ⚠️ Failed on ${server}: ${err.message}`);
-        // If it's the last attempt, return empty. Otherwise loop continues.
-        if (i === 1) return [];
-        await sleep(500); // Wait 0.5s before retrying next server
+        if (systemLogger) systemLogger.warn(`⚠️ Failed on ${server}: ${err.message}`, { label: 'OSM' });
+        // Wait 200ms before next try
+        await sleep(200);
       }
   }
-  
+
+  await logCost(db, 'OPEN_STREET_MAP', 'amenity_search', 0, 'FAIL');
   return [];
 }
 

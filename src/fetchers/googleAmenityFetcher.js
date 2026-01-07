@@ -24,6 +24,8 @@ async function fetchAmenitiesForPoint(lat, lng) {
             type: place.types ? place.types[0] : 'unknown',
             rating: place.rating,
             user_ratings_total: place.user_ratings_total,
+            lat: place.geometry?.location?.lat, // ✅ ADD THIS
+            lng: place.geometry?.location?.lng, // ✅ ADD THIS
             vicinity: place.vicinity,
             source: 'google'
         })).slice(0, 5); // Take top 5 results

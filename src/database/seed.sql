@@ -1,3 +1,9 @@
-ALTER TABLE chat_logs ADD COLUMN feedback VARCHAR(10) DEFAULT NULL;
-ALTER TABLE chat_logs ALTER COLUMN message TYPE TEXT;
--- This allows values like 'up', 'down', or null
+-- 1. Clear Amenities first (Foreign Key dependency)
+TRUNCATE TABLE station_amenities CASCADE;
+
+-- 2. Clear Verifications (Foreign Key dependency)
+TRUNCATE TABLE station_verifications CASCADE;
+
+-- 3. Clear the Master Station Table
+TRUNCATE TABLE stationsmaster CASCADE;
+

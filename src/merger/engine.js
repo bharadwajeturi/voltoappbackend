@@ -1,10 +1,30 @@
 /**
  * Data Merge Engine
- * STATUS: FIXED (Smart Merging of Address, Power, & Connectors + Detailed Logs)
+ * STATUS: FIXED (Smart Merging of Address, Power, Connectors & Amenities + Detailed Logs)
  */
 
 const geohash = require('ngeohash');
 const { isSameName } = require('../utils/fuzzyMatch');
+const { systemLogger } = require('../utils/logger'); // 🟢 IMPORT LOGGER
+
+// 🟢 JUNK TAGS TO REMOVE FROM AMENITIES
+const IGNORED_AMENITIES = [
+    'electric_vehicle_charging_station', 
+    'point_of_interest', 
+    'establishment', 
+    'premise', 
+    'parking',
+    'location',
+    'store' // Too generic, prefer specific store types
+];
+
+function cleanAmenities(amenityList) {
+    if (!amenityList || !Array.isArray(amenityList)) return [];
+    // Remove underscores and filter out junk
+    return amenityList
+        .map(a => a.replace(/_/g, ' ').toLowerCase())
+        .filter(a => !IGNORED_AMENITIES.includes(a.replace(/ /g, '_')));
+}
 
 function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = [], rapidData = []) {
   
@@ -24,7 +44,9 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
   const validHotels = hotelStations.filter(isValidStation);
   const validRapid = rapidData.filter(isValidStation);
 
-  console.log(`\n🔀 MERGE: Inputs: Google(${validGoogle.length}), OCM(${validOCM.length}), Gov(${validGov.length}), Rapid(${validRapid.length})`);
+  if (systemLogger) {
+      systemLogger.debug(`Merge Inputs: Google(${validGoogle.length}), OCM(${validOCM.length}), Gov(${validGov.length}), Rapid(${validRapid.length})`, { label: 'MERGER' });
+  }
 
   // Priority helps sort the bucket, but our merge logic below handles field-level updates regardless of order.
   const sourcePriority = { 
@@ -70,9 +92,6 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
             if (isMatch) {
                 merged = true;
                 
-                // 🟢 LOG: Merge Detected
-                console.log(`   🤝 MERGE MATCH: "${candidate.name}" (${candidate.source}) matched with "${record.name}" (${record.sourceCount} sources)`);
-
                 // 🟢 1. Update Trust Score
                 record.trustscore = Math.max(record.trustscore, candidate.trustscore || 50);
                 if (!record.sources.includes(candidate.source)) {
@@ -87,7 +106,6 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
                 const newPower = parseFloat(candidate.powerkw);
                 
                 if (newPower > oldPower) {
-                    console.log(`      ⚡ Power Upgrade: ${oldPower}kW -> ${newPower}kW (Thanks to ${candidate.source})`);
                     record.powerkw = newPower;
                 }
                 
@@ -100,7 +118,6 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
                 // Google often gives short addresses. OCM/Gov often give full ones.
                 if (!record.address || (candidate.address && candidate.address.length > record.address.length)) {
                     if (candidate.address) { // Only update if candidate actually has an address
-                        console.log(`      📍 Address Improved: "${record.address}" -> "${candidate.address}" (Thanks to ${candidate.source})`);
                         record.address = candidate.address;
                     }
                 }
@@ -114,16 +131,19 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
                     if (s.includes('TYPE 2') || s.includes('TYPE2')) return 'Type 2';
                     if (s.includes('CHADEMO')) return 'CHAdeMO';
                     return c; // Keep original if specific
-                }).filter(c => c))];
+                }).filter(c => c !== 'Unknown'))]; // Filter out unknowns during merge
 
-                if (uniqueConnectors.length > (record.connectorTypes || []).length) {
-                     console.log(`      🔌 Connectors Enriched: ${JSON.stringify(record.connectorTypes)} -> ${JSON.stringify(uniqueConnectors)}`);
+                if (uniqueConnectors.length > 0) {
+                     // If we have known connectors, replace 'Unknown' or merge
                      record.connectorTypes = uniqueConnectors;
                 }
 
-                // 🟢 6. Amenities Merge (Union)
-                const combinedAmenities = [...(record.amenities || []), ...(candidate.amenities || [])];
-                record.amenities = [...new Set(combinedAmenities)];
+                // 🟢 6. Amenities Merge (Clean & Union)
+                const cleanCandidateAmenities = cleanAmenities(candidate.amenities);
+                if (cleanCandidateAmenities.length > 0) {
+                    const combinedAmenities = [...(record.amenities || []), ...cleanCandidateAmenities];
+                    record.amenities = [...new Set(combinedAmenities)];
+                }
 
                 break; 
             }
@@ -135,9 +155,6 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
                 const cleanName = (candidate.name || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '');
                 stableId = `${candidate.source}_${hash}_${cleanName}`;
             }
-
-            // 🟢 LOG: New Record Created
-            // console.log(`   🆕 New Record: "${candidate.name}" from ${candidate.source}`);
 
             bucketGoldenRecords.push({
                 id: stableId,
@@ -153,7 +170,7 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
                 trustscore: candidate.trustscore || 50,
                 sources: [candidate.source],
                 sourceCount: 1,
-                amenities: candidate.amenities || [],
+                amenities: cleanAmenities(candidate.amenities), // Clean initial amenities
                 lastupdatedat: new Date().toISOString()
             });
         }
@@ -161,15 +178,8 @@ function mergeData(googleData = [], ocmData = [], govData = [], hotelStations = 
     goldenRecords.push(...bucketGoldenRecords);
   }
 
-  console.log(`✅ Merge Complete. ${goldenRecords.length} unique stations ready.`);
-  console.log(`\n🔀 MERGE REPORT:`);
-  console.log(`   - Inputs: Google(${validGoogle.length}), OCM(${validOCM.length}), Gov(${validGov.length}), Rapid(${validRapid.length})`);
-  console.log(`   - 🏆 Golden Records Created: ${goldenRecords.length}`);
-  
-  // LOG SAMPLE OF A GOOD RECORD
-  const bestRecord = goldenRecords.find(g => g.powerkw > 0 && g.connectorTypes.length > 0);
-  if(bestRecord) {
-      console.log(`   - ✨ Sample Best Record: ${bestRecord.name} (${bestRecord.powerkw}kW, ${bestRecord.connectorTypes})`);
+  if (systemLogger) {
+      systemLogger.info(`Merge Complete. Created ${goldenRecords.length} Golden Records.`, { label: 'MERGER' });
   }
 
   return goldenRecords;

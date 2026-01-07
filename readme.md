@@ -41,3 +41,26 @@ Complete backend implementation with all rules applied.
 
 ```bash
 npm install
+
+
+SELECT 
+    service_name, 
+    SUM(units_used) as total_units, 
+    CASE 
+        WHEN service_name = 'GOOGLE_PLACES' THEN SUM(units_used) * 0.030 
+        WHEN service_name = 'GEMINI_AI' THEN SUM(units_used) * 0.0001
+        ELSE 0 
+    END as estimated_cost_usd
+FROM cost_logs
+WHERE created_at > NOW() - INTERVAL '7 days'
+GROUP BY service_name;
+
+
+-- Add a hidden flag
+ALTER TABLE stationsmaster ADD COLUMN is_blacklisted BOOLEAN DEFAULT FALSE;
+
+-- Query to ban a station
+UPDATE stationsmaster SET is_blacklisted = TRUE WHERE id = 'ocm_12345';
+
+-- Update your dbmanager.js query to always include:
+-- WHERE is_blacklisted = FALSE

@@ -1,0 +1,115 @@
+[13:12:48] [fdafdd88] [INFO] [API_GATEWAY] Incoming GET /api/config
+[13:12:49] [a9e5304a] [INFO] [API_GATEWAY] Incoming GET /api/vehicles
+[13:12:56] [f23fe98f] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Hyd
+[13:12:57] [60ca9f3b] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Hyde
+[13:12:57] [7bf0f405] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Hydee
+[13:12:58] [0aee07d4] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Hyde
+[13:12:59] [1e535b5c] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Hyd
+[13:13:28] [35824608] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Hyd
+[13:13:29] [0ac7290d] [INFO] [API_GATEWAY] Incoming GET /api/places/details?placeId=ChIJx9Lr6tqZyzsRwvu6koO3k64
+[13:13:32] [82c39957] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Dor
+[13:13:36] [be3bf1eb] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Nag
+[13:13:36] [f3e88667] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Nagp
+[13:13:38] [dd2a60d8] [INFO] [API_GATEWAY] Incoming GET /api/places/details?placeId=ChIJE68fo6XA1DsRKz670AZ9sxk
+[13:13:49] [2b336b22] [INFO] [API_GATEWAY] Incoming POST /api/plan-route
+[13:13:49] [2b336b22] [INFO] [ROUTE_PLAN] Route Request: Hyderabad -> Nagpur
+[13:13:50] [SYSTEM] [INFO] [AGGREGATOR] Analyzing 9 sectors (7-Day Cache Rule)...
+[13:13:50] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.4065,78.47721
+[13:13:50] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.87149,78.47204
+[13:13:50] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 18.32778,78.36064
+[13:13:50] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 18.77998,78.32068
+[13:13:50] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 19.2265,78.413
+[13:13:50] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 19.67958,78.50225
+[13:13:50] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 20.1269,78.61037
+[13:13:50] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 20.54355,78.80022
+[13:13:50] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 20.9528,79.01427
+[13:13:50] [SYSTEM] [INFO] [AGGREGATOR] Scan Complete. Fetched: 0 | Cached: 9
+[13:13:50] [2b336b22] [DEBUG] [ROUTE_PLAN] Calculating FAST & SLOW routes...
+[13:13:50] [SYSTEM] [INFO] [ROUTER] [Router] STARTING SIMULATION (v10.7) - Strategy: FAST
+[13:13:50] [SYSTEM] [DEBUG] [ROUTER] Scanning at 210km ahead...
+[13:13:50] [SYSTEM] [INFO] [ROUTER] [Router] STARTING SIMULATION (v10.7) - Strategy: SLOW
+[13:13:50] [SYSTEM] [DEBUG] [ROUTER] Scanning at 153km ahead...
+[13:13:50] [SYSTEM] [DEBUG] [ROUTER] ✅ Reached Destination (Est: 18.2%)
+[13:13:50] [SYSTEM] [INFO] [ROUTER] ✅ [Router] Complete. Total Stops: 3.
+[13:13:50] [SYSTEM] [DEBUG] [ROUTER] Scanning at 287km ahead...
+[13:13:50] [SYSTEM] [DEBUG] [ROUTER] ❌ Failed: 5km Search
+[13:13:50] [SYSTEM] [DEBUG] [ROUTER] ✅ Reached Destination (Est: 66.9%)
+[13:13:50] [SYSTEM] [INFO] [ROUTER] ✅ [Router] Complete. Total Stops: 4.
+[13:13:50] [SYSTEM] [DEBUG] [OSM] Attempt 1: Fetching from overpass.kumi.systems...
+[13:13:52] [SYSTEM] [INFO] [OSM] ✅ Success: Found 0 amenities.
+[13:13:52] [SYSTEM] [DEBUG] [OSM] Attempt 1: Fetching from maps.mail.ru...
+[13:13:53] [SYSTEM] [INFO] [OSM] ✅ Success: Found 0 amenities.
+[13:13:54] [SYSTEM] [DEBUG] [OSM] Attempt 1: Fetching from overpass-api.de...
+[13:13:54] [SYSTEM] [INFO] [OSM] ✅ Success: Found 0 amenities.
+[13:13:55] [ffca86a7] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=ChIJ5xDeImuMzTsRxfyWub5KpYM&lat=19.0822833&lng=78.3610139
+[13:13:55] [ffca86a7] [DEBUG] [LAZY_LOAD] [Lazy Load] Fetching amenities for ChIJ5xDeImuMzTsRxfyWub5KpYM
+[13:13:55] [4181d2b4] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=21.1458004&lng=79.0881546
+[13:14:06] [b7e4b4fb] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=ocm_312412&lat=18.6321708&lng=78.2081702
+[13:14:06] [b7e4b4fb] [DEBUG] [LAZY_LOAD] [Lazy Load] Fetching amenities for ocm_312412
+[13:14:06] [8e65045e] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=ChIJaXqh0iFi0zsROxkxcO7xFVk&lat=20.7107926&lng=78.9258909
+[13:14:06] [8e65045e] [DEBUG] [LAZY_LOAD] [Lazy Load] Fetching amenities for ChIJaXqh0iFi0zsROxkxcO7xFVk
+[13:14:07] [b14d9247] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=21.1458004&lng=79.0881546
+[13:14:10] [5cf844f1] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=21.1458004&lng=79.0881546
+[13:14:12] [614023de] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=ChIJaXqh0iFi0zsROxkxcO7xFVk&lat=20.7107926&lng=78.9258909
+[13:14:12] [614023de] [DEBUG] [LAZY_LOAD] [Lazy Load] Fetching amenities for ChIJaXqh0iFi0zsROxkxcO7xFVk
+[13:14:12] [879a05a0] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=21.1458004&lng=79.0881546
+[13:14:13] [dcf50b42] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=21.1458004&lng=79.0881546
+[13:14:16] [dee7ba6d] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=ChIJaXqh0iFi0zsROxkxcO7xFVk&lat=20.7107926&lng=78.9258909
+[13:14:16] [dee7ba6d] [DEBUG] [LAZY_LOAD] [Lazy Load] Fetching amenities for ChIJaXqh0iFi0zsROxkxcO7xFVk
+[13:14:16] [c0f883a4] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=21.1458004&lng=79.0881546
+[13:14:40] [525f1340] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=21.1458004&lng=79.0881546
+[13:14:41] [d2706adf] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=ChIJaXqh0iFi0zsROxkxcO7xFVk&lat=20.7107926&lng=78.9258909
+[13:14:41] [d2706adf] [DEBUG] [LAZY_LOAD] [Lazy Load] Fetching amenities for ChIJaXqh0iFi0zsROxkxcO7xFVk
+[13:14:41] [ccf368a2] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=21.1458004&lng=79.0881546
+[13:14:43] [ddae31aa] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=21.1458004&lng=79.0881546
+[13:14:45] [9dc0bc6f] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=ChIJaXqh0iFi0zsROxkxcO7xFVk&lat=20.7107926&lng=78.9258909
+[13:14:45] [9dc0bc6f] [DEBUG] [LAZY_LOAD] [Lazy Load] Fetching amenities for ChIJaXqh0iFi0zsROxkxcO7xFVk
+[13:14:45] [21b9bd6e] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=21.1458004&lng=79.0881546
+[13:15:10] [2550260c] [INFO] [API_GATEWAY] Incoming GET /api/nearby?lat=17.4821866&lng=78.373411&r=5
+[13:15:10] [SYSTEM] [INFO] [AGGREGATOR] Analyzing 1 sectors (7-Day Cache Rule)...
+[13:15:10] [c49a4257] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=ocm_149524&lat=17.50128&lng=78.37811
+[13:15:11] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.4821866,78.373411
+[13:15:11] [SYSTEM] [INFO] [AGGREGATOR] Scan Complete. Fetched: 0 | Cached: 1
+[13:15:15] [b04967d9] [INFO] [API_GATEWAY] Incoming GET /api/support/faq
+[13:21:35] [4796edb7] [INFO] [API_GATEWAY] Incoming GET /api/config
+[13:21:35] [b9b708d8] [INFO] [API_GATEWAY] Incoming GET /api/vehicles
+[13:21:38] [c5329a9a] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Hyd
+[13:21:39] [5a789e77] [INFO] [API_GATEWAY] Incoming GET /api/places/details?placeId=ChIJx9Lr6tqZyzsRwvu6koO3k64
+[13:21:42] [1e87f28a] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Viz
+[13:21:42] [2e9b4e34] [INFO] [API_GATEWAY] Incoming GET /api/places/autocomplete?query=Viza
+[13:21:44] [77a9aade] [INFO] [API_GATEWAY] Incoming GET /api/places/details?placeId=ChIJP5fmiRNDOToRaIRJlQPC2ZI
+[13:21:51] [c8647c4b] [INFO] [API_GATEWAY] Incoming POST /api/plan-route
+[13:21:51] [c8647c4b] [INFO] [ROUTE_PLAN] Route Request: Hyderabad -> Vizag
+[13:21:52] [SYSTEM] [INFO] [AGGREGATOR] Analyzing 11 sectors (7-Day Cache Rule)...
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.4065,78.47721
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.23116,78.96614
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.15758,79.45009
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.01,79.9054
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 16.75398,80.29737
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 16.57492,80.76284
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 16.76192,81.2043
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.05464,81.57916
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.17268,82.05304
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.35309,82.52612
+[13:21:52] [SYSTEM] [DEBUG] [AGGREGATOR] Checking Freshness Sector 17.64359,82.90492
+[13:21:52] [SYSTEM] [INFO] [AGGREGATOR] Scan Complete. Fetched: 0 | Cached: 11
+[13:21:52] [c8647c4b] [DEBUG] [ROUTE_PLAN] Calculating FAST & SLOW routes...
+[13:21:52] [SYSTEM] [INFO] [ROUTER] [Router] STARTING SIMULATION (v10.7) - Strategy: FAST
+[13:21:52] [SYSTEM] [DEBUG] [ROUTER] Scanning at 173km ahead...
+[13:21:52] [SYSTEM] [INFO] [ROUTER] [Router] STARTING SIMULATION (v10.7) - Strategy: SLOW
+[13:21:52] [SYSTEM] [DEBUG] [ROUTER] Scanning at 126km ahead...
+[13:21:52] [SYSTEM] [DEBUG] [ROUTER] Scanning at 283km ahead...
+[13:21:52] [SYSTEM] [DEBUG] [ROUTER] ❌ Failed: 5km Search
+[13:21:52] [SYSTEM] [DEBUG] [ROUTER] ✅ Reached Destination (Est: 40.4%)
+[13:21:52] [SYSTEM] [INFO] [ROUTER] ✅ [Router] Complete. Total Stops: 4.
+[13:21:52] [SYSTEM] [DEBUG] [ROUTER] Scanning at 236km ahead...
+[13:21:52] [SYSTEM] [DEBUG] [ROUTER] ❌ Failed: 5km Search
+[13:21:52] [SYSTEM] [DEBUG] [ROUTER] ✅ Reached Destination (Est: 30.0%)
+[13:21:52] [SYSTEM] [INFO] [ROUTER] ✅ [Router] Complete. Total Stops: 4.
+[13:21:52] [SYSTEM] [DEBUG] [OSM] Attempt 1: Fetching from overpass-api.de...
+[13:21:53] [SYSTEM] [INFO] [OSM] ✅ Success: Found 1 amenities.
+[13:21:53] [SYSTEM] [DEBUG] [OSM] Attempt 1: Fetching from overpass-api.de...
+[13:21:53] [SYSTEM] [INFO] [OSM] ✅ Success: Found 9 amenities.
+[13:21:54] [acf71230] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=ChIJEZA6u7IDNToRHd0O6d1XZKQ&lat=16.994091&lng=79.975967
+[13:21:54] [9999cc9a] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=ChIJy1h2oAh-NzoRyh8IhHxTDG4&lat=17.229234&lng=82.203978
+[13:21:54] [850eaf7e] [INFO] [API_GATEWAY] Incoming GET /api/station/amenities?stationId=wp_0&lat=17.6973801&lng=83.29902539999999

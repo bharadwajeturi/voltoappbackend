@@ -6,77 +6,93 @@ class DatabaseManager {
     this.pool = new Pool(config.db);
   }
 
-  // 🟢 CORE: Data Normalization & Brand Logic
+  // 🟢 CORE: Data Normalization & Parsing
+  // Handles converting DB strings "{CCS2,Type2}" -> JSON Arrays ["CCS2", "Type2"]
+  parsePgArray(dbString) {
+      if (!dbString) return [];
+      if (Array.isArray(dbString)) return dbString; // Already an array
+      
+      try {
+          let clean = dbString.toString();
+          
+          // Case 1: Handle CSV double-quotes '[""CCS2""]'
+          if (clean.includes('""')) clean = clean.replace(/""/g, '"');
+          
+          // Case 2: Handle Postgres Array Format '{Item1,Item2}'
+          if (clean.startsWith('{') && clean.endsWith('}')) {
+              return clean.slice(1, -1) // Remove { }
+                  .split(',')
+                  .map(s => s.trim().replace(/"/g, '')) // Remove quotes
+                  .filter(s => s.length > 0);
+          }
+
+          // Case 3: Handle JSON Format '["Item1","Item2"]'
+          if (clean.startsWith('[') && clean.endsWith(']')) {
+              return JSON.parse(clean);
+          }
+
+          // Case 4: Single String fallback
+          return [clean];
+
+      } catch (e) {
+          console.warn("[DB] Array Parse Error:", e.message);
+          return [];
+      }
+  }
+
   applyBrandHeuristic(station) {
       const BRANDS = ['Tata Power', 'Zeon', 'Statiq', 'Shell', 'Jio-bp', 'Hyundai', 'Mahindra', 'ChargeZone', 'Glida', 'LionCharge', 'BPCL', 'HPCL', 'Ather'];
       
-      // 1. FIX: Handle CSV Double-Escaped JSON (e.g., "[""CCS2""]")
-      let connectors = station.connectorTypes || station.connectortypes; 
+      // 1. FIX: Parse Connectors
+      const rawConnectors = station.connectorTypes || station.connectortypes;
+      const parsedConnectors = this.parsePgArray(rawConnectors);
       
-      if (typeof connectors === 'string') {
-          try {
-              // Step A: Fix CSV double quotes ("" -> ")
-              let cleanStr = connectors.replace(/""/g, '"');
-              
-              // Step B: Remove surrounding quote artifacts if present
-              // Sometimes CSV import leaves a wrapping quote like '"["CCS2"]"'
-              if (cleanStr.startsWith('"') && cleanStr.endsWith('"')) {
-                  cleanStr = cleanStr.slice(1, -1);
-              }
+      // Ensure we always have at least 'Unknown' if empty
+      station.connectorTypes = parsedConnectors.length > 0 ? parsedConnectors : ['Unknown'];
 
-              // Step C: Try parsing clean JSON
-              const parsed = JSON.parse(cleanStr);
-              connectors = Array.isArray(parsed) ? parsed : [parsed];
+      // 2. FIX: Parse Amenities
+      // We explicitly parse the amenities column now
+      const rawAmenities = station.amenities;
+      station.amenities = this.parsePgArray(rawAmenities);
 
-          } catch (e) {
-              // Step D: Fallback - Regex extraction if JSON breaks
-              // Extracts words like "CCS2", "Type 2" ignoring brackets/quotes
-              const matches = connectors.match(/[a-zA-Z0-9\s-]+/g);
-              connectors = matches ? matches.filter(w => w.trim().length > 1) : [];
-          }
-      }
-      
-      // Normalize to Array (ensure no nulls)
-      station.connectorTypes = Array.isArray(connectors) && connectors.length > 0 
-          ? connectors 
-          : [];
-
-      // 2. Identify Brand
+      // 3. Identify Brand
       const isBrand = BRANDS.some(b => 
         (station.operator && station.operator.toLowerCase().includes(b.toLowerCase())) || 
         (station.name && station.name.toLowerCase().includes(b.toLowerCase()))
       );
 
-      // 3. Power Logic: ONLY update if missing (0 or null)
+      // 4. Power Logic
       let power = parseFloat(station.powerkw);
       if (isNaN(power)) power = 0;
 
       if (power <= 0) {
           if (isBrand) {
-              station.powerkw = 30; // Brand Rescue: Assume decent speed
-              station.badge = 'SILVER'; 
+              station.powerkw = 30; 
               station.trustscore = 80;
-              // 🟢 STRICT RULE: We do NOT add dummy connectors here anymore.
           } else {
-              station.powerkw = 7.4; // Generic Fallback
-              station.badge = 'BRONZE';
+              station.powerkw = 7.4; 
               station.trustscore = 60;
           }
       } else {
-          // Real data exists -> Keep it!
           station.powerkw = power; 
-          station.badge = power >= 50 ? 'PLATINUM' : 'GOLD';
-      }
-
-      // 4. Connector Fallback: If empty, mark as "Unknown" (No Dummy Data)
-      if (station.connectorTypes.length === 0) {
-          station.connectorTypes = ['Unknown'];
       }
 
       return station;
   }
 
-  // Find Nearby (NearMe Screen)
+  // 🟢 HELPER: Get Single Station
+  async getStationById(id) {
+      try {
+          const res = await this.pool.query(`SELECT * FROM stationsmaster WHERE id = $1`, [id]);
+          if (res.rows.length === 0) return null;
+          return this.applyBrandHeuristic(res.rows[0]);
+      } catch (e) {
+          console.error(`[DB] Error fetching station ${id}:`, e.message);
+          return null;
+      }
+  }
+
+  // 🟢 FIND NEARBY (For NearMe Screen)
   async findNearbyStations(lat, lng, radiusMeters = 5000) {
     try {
       const validKeywords = [
@@ -89,48 +105,50 @@ class DatabaseManager {
         .map(w => `LOWER(s.name) LIKE '%${w}%' OR LOWER(s.operator) LIKE '%${w}%'`)
         .join(' OR ');
 
+      // 🟢 FIX: Selecting s.amenities directly from table
       const query = `
         SELECT 
           s.id, s.name, s.lat, s.lng, s.operator, s.powerkw, 
           s.connectortypes as "connectorTypes", 
-          s.trustscore, s.sources, s.address,
-          array_remove(array_agg(DISTINCT sa.amenity_type), NULL) as amenities
+          s.amenities, 
+          s.trustscore, s.sources, s.address, s.verified_status
         FROM stationsmaster s
-        LEFT JOIN station_amenities sa ON s.id = sa.station_id
         WHERE ST_DWithin(s.geog, ST_Point($1, $2)::geography, $3) 
         AND (
             s.trustscore > 30 
             OR array_length(s.connectortypes, 1) > 0 
             OR (${keywordFilter})
         )
-        GROUP BY s.id
-        ORDER BY ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC
+        ORDER BY 
+            (s.verified_status = 'Working') DESC,
+            ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC
         LIMIT 100
       `;
       const result = await this.pool.query(query, [lng, lat, radiusMeters]);
-      return result.rows.map(s => this.applyBrandHeuristic(s));
+      
+      return result.rows.map(s => {
+          const clean = this.applyBrandHeuristic(s);
+          
+          let badge = 'BRONZE';
+          if (s.verified_status === 'Working') badge = 'VERIFIED';
+          else if (clean.powerkw >= 50) badge = 'PLATINUM';
+          else if (clean.powerkw >= 25) badge = 'GOLD';
+          else if (clean.powerkw >= 15) badge = 'SILVER';
+          
+          return { ...clean, badge };
+      });
+
     } catch (error) {
-      console.error('Database Error:', error.message);
+      console.error('❌ [DB] Nearby Search Error:', error.message);
       return [];
     }
   }
 
-  /**
-   * 🟢 ADAPTIVE SEARCH (v7.0)
-   * Finds the best stations near a point, filtering by strategy & keywords.
-   * Handles: Radius, Power Requirements, Keyword Filtering, and Badging.
-   */
-
-  // 🟢 CORE: Adaptive Search (Route Planner)
-  /**
-   * 🟢 ADAPTIVE SEARCH (v9.5 - Dynamic Radius Support)
-   * Now accepts 'radiusOverride' to support Deep Scans.
-   */
+  // 🟢 ADAPTIVE SEARCH (For Route Planner)
   async adaptiveSearch(lat, lng, excludeIds = [], strategy = 'FAST', radiusOverride = null) {
       try {
-          // 🟢 FIX: Allow Router to override radius (e.g., 100km for Deep Scan)
           let radius = radiusOverride || (strategy === 'FAST' ? 50000 : 30000); 
-          const minPower = strategy === 'FAST' ? 15 : 0;      
+          const minPower = strategy === 'FAST' ? 15 : 0;       
 
           const validKeywords = [
             'charging', 'charger', 'ev', 'electric', 'power', 'station', 'point', 'supply', 'battery', 
@@ -146,14 +164,14 @@ class DatabaseManager {
             ? `AND s.id NOT IN (${excludeIds.map(id => `'${id}'`).join(',')})` 
             : '';
 
+          // 🟢 FIX: Selecting s.amenities directly
           const query = `
             SELECT 
                 s.id, s.name, s.lat, s.lng, s.operator, 
-                s.powerkw, s.trustscore, s.address,
+                s.powerkw, s.trustscore, s.address, s.verified_status,
                 s.connectortypes as "connectorTypes",
-                array_remove(array_agg(DISTINCT sa.amenity_type), NULL) as amenities
+                s.amenities
             FROM stationsmaster s
-            LEFT JOIN station_amenities sa ON s.id = sa.station_id
             WHERE ST_DWithin(s.geog, ST_Point($1, $2)::geography, $3) 
             AND s.powerkw >= $4 
             ${excludeClause}
@@ -162,21 +180,26 @@ class DatabaseManager {
                 OR array_length(s.connectortypes, 1) > 0  
                 OR (${keywordFilter})               
             )
-            GROUP BY s.id
             ORDER BY 
-                ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC -- Closest first for routing
+                (s.verified_status = 'Working') DESC,
+                s.powerkw DESC,
+                ST_Distance(s.geog, ST_Point($1, $2)::geography) ASC
             LIMIT 20
           `;
           
           const result = await this.pool.query(query, [lng, lat, radius, minPower]);
 
           const stations = result.rows.map(s => {
-              const cleanStation = this.applyBrandHeuristic ? this.applyBrandHeuristic(s) : s;
+              const cleanStation = this.applyBrandHeuristic(s);
+              
               let badge = 'BRONZE';
               const p = parseFloat(cleanStation.powerkw || 0);
               const t = parseFloat(cleanStation.trustscore || 0);
-              if (p >= 50 && t > 80) badge = 'GOLD';
+              
+              if (s.verified_status === 'Working') badge = 'VERIFIED';
+              else if (p >= 50 && t > 80) badge = 'GOLD';
               else if (p >= 25 && t > 50) badge = 'SILVER';
+              
               return { ...cleanStation, badge };
           });
           
